@@ -14,6 +14,9 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 CSS_FILE = Path(__file__).with_name("brand.css")
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
+LOGO_MARK = ASSETS / "logo-mark.png"  # round mark: browser tab icon
+LOGO = {"light": ASSETS / "logo-full.png", "dark": ASSETS / "logo-full-white.png"}
 
 INDIGO, RED, STILETTO, GREEN = "#4D458A", "#BD2239", "#992849", "#109648"
 
@@ -68,6 +71,10 @@ def theme_type() -> str:
         return "dark" if st.context.theme.type == "dark" else "light"
     except Exception:
         return "light"
+
+
+def logo() -> str:
+    return str(LOGO[theme_type()])
 
 
 def token(name: str) -> str:

@@ -7,7 +7,7 @@ import streamlit as st
 from projection.data.load import Dataset
 from projection.data.schema import Issue
 from ui import html as h
-from ui.brand import theme_toggle
+from ui.brand import logo, theme_toggle
 from ui.state import demo_mode, get_secrets, refresh
 
 SEVERITY = {"error": ("Error", "scale"), "warning": ("Check", "low"), "info": ("Info", "ins")}
@@ -15,8 +15,8 @@ SEVERITY = {"error": ("Error", "scale"), "warning": ("Check", "low"), "info": ("
 
 def sidebar(ds: Dataset | None, tools: list) -> None:
     with st.sidebar:
-        st.html('<div class="brand"><div class="logo" aria-hidden="true">TCHB</div><div><strong>Total Cash Home Buyers'
-                '</strong><span>Projection Tool</span></div></div>')
+        st.image(logo(), width="stretch")
+        st.html('<div class="brand-sub">Projection Tool</div>')
         theme_toggle()
         st.html('<div class="side-h">Data Source</div>')
         refreshed = f"<span>Refreshed {ds.fetched_at:%-I:%M %p}</span>" if ds is not None else ""

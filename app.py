@@ -5,12 +5,11 @@
 
 import streamlit as st
 
-from ui.brand import inject
+from ui.brand import LOGO_MARK, inject
 from ui.layout import setup_screen, sidebar, tab_capsule
 from ui.state import demo_mode, get_dataset, get_secrets
 
-st.set_page_config(page_title="Projection Tool · Total Cash Home Buyers", page_icon=":material/insights:",
-                   layout="wide")
+st.set_page_config(page_title="Projection Tool · Total Cash Home Buyers", page_icon=str(LOGO_MARK), layout="wide")
 inject()
 
 MAIN = [

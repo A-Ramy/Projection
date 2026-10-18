@@ -27,12 +27,8 @@ input,textarea,[data-testid="stDataFrame"]{text-transform:none}
 [data-testid="stSidebar"]>div:first-child{background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
   border:1px solid var(--glass-border);box-shadow:var(--glass-hi),var(--glass-shadow);border-radius:26px;margin:12px;
   height:calc(100% - 24px)}
-.brand{display:flex;gap:10px;align-items:center;margin:4px 0 6px}
-.logo{width:42px;height:42px;border-radius:14px;background:linear-gradient(160deg,#bd2239 0%,#7d3468 45%,#4d458a 100%);
-  color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.04em;flex:none;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 6px 18px rgba(189,34,57,.32)}
-.brand strong{display:block;font-family:var(--display);font-size:17px;line-height:1.1;color:var(--heading)}
-.brand span{color:var(--muted);font-size:12.5px}
+[data-testid="stSidebar"] [data-testid="stImage"] img{filter:drop-shadow(0 4px 12px rgba(34,29,84,.18))}
+.brand-sub{font-family:var(--display);font-size:15px;font-weight:600;color:var(--muted);margin:-6px 0 6px 2px}
 .side-h{margin:14px 0 4px;font-size:12.5px;font-weight:700;color:var(--muted);text-transform:capitalize;letter-spacing:.01em}
 .kv{display:grid;gap:2px;color:var(--muted);font-size:13.5px}.kv b{color:var(--fg);font-weight:600}
 .badge{font-size:11.5px;background:var(--warn-bg);color:var(--warn);border-radius:999px;padding:0 7px;font-weight:700;margin-left:6px}

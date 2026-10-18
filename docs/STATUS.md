@@ -16,8 +16,8 @@
 | 4 | Finalize metric definitions from the real values | Claude → Owner | Owner approves | **Done** (2026-10-18) |
 | 5 | Phase b: metrics engine + tests | Claude | All tests pass, incl. $37,500 and Follow Up roll-up | **Done** (2026-10-18) |
 | 6 | Phase c: Projections tab, saved quarters | Claude | Q1–Q3 totals reconcile to the sheet | **Done** (2026-10-18) |
-| 7 | First deploy: Neon + Streamlit Community Cloud (private, invited emails) | Owner with Claude | Team opens the URL; uninvited account blocked | **Next** |
-| 8 | Phase d: suggestions, overrides, guardrails, D3 profit target | Claude | Owner reviews Q4 suggestions | Not started |
+| 7 | First deploy: Neon + Streamlit Community Cloud (private, invited emails) | Owner with Claude | Team opens the URL; uninvited account blocked | **Done** (2026-10-18) |
+| 8 | Phase d: suggestions, overrides, guardrails, D3 profit target | Claude | Owner reviews Q4 suggestions | **Next** |
 | 9 | Phase e: PTA tab, then Funnel tab | Claude | Owner review | Not started |
 | 10 | Phase f: glass styling, light/dark toggle, Title Case, charts, quarter history | Claude | Owner review against the mockup | Not started |
 | 11 | First real run: Q4 2026 suggestions from Q1–Q3, Q4 actuals and pacing | Claude | Owner review | Not started |
@@ -25,6 +25,10 @@
 | 13 | Final README + CLAUDE.md | Claude | Done | Not started |
 
 ## Done so far
+- Step 7 (2026-10-18, owner): deployed at https://tchb-projection.streamlit.app/ from this branch (main file
+  `app.py`, Python 3.12), secrets in Streamlit Cloud (key, SHEET_ID, Neon `DATABASE_URL`), app private with
+  invited viewers; owner confirmed Q3 2026 loads and an uninvited account is blocked. **Every push to this
+  branch redeploys the live app**, so run tests before pushing.
 - Step 6 (2026-10-18): Projections tab (`views/projections.py`, logic in `projection/planning.py`): quarter picker
   (start → next quarter), editable Marketing / Non-Marketing cost lines and Revenue / Fix & Flip / Buy & Hold
   lines, Other marketing (unprojected), Follow Up drill-down, summary + pacing, month-by-month, Save / Discard /

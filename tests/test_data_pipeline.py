@@ -137,6 +137,13 @@ def test_blank_kpi_dates_counted_and_excluded(ds):
     assert "2 rows with a blank Date" in issue(ds, "blank_kpi_dates").title
 
 
+def test_lead_rows_kept_by_date_created(ds):
+    # rows 3, 4, 6 (dated) and 7 (Pending, blank Date); rows 2, 8, 9 were created before 2026
+    assert sorted(ds.leads["sheet_row"]) == [3, 4, 6, 7]
+    assert ds.leads.set_index("sheet_row").loc[7, "month"] == "2026-02"
+    assert ds.blank_kpi_dates.leads_counted == 1
+
+
 def test_unknown_kpi_and_other_quality(ds):
     assert "Mystery KPI: 1" in issue(ds, "unknown_kpi").examples
     assert "Pending: 1" in issue(ds, "lead_other_quality").examples

@@ -10,13 +10,17 @@ from projection.data.schema import LEAD_KPI, QUALIFIED
 from projection.periods import Month
 
 
+def _net_leads(ds: Dataset) -> pd.DataFrame:
+    return ds.kpis[(ds.kpis["kpi"] == LEAD_KPI) & (ds.kpis["quality"] == QUALIFIED)]
+
+
 def months_overview(ds: Dataset) -> pd.DataFrame:
     c = ds.costs.groupby("month").agg(cost_lines=("cost", "size"), cost_total=("cost", "sum"))
     r = ds.revenues.groupby("month").agg(deals=("revenue", "size"), revenue=("revenue", "sum"))
     k = ds.kpis.groupby("month").agg(kpi_events=("kpi", "size"))
-    leads = ds.kpis[ds.kpis["kpi"] == LEAD_KPI].groupby("month").agg(
-        leads=("kpi", "size"), net_leads=("quality", lambda s: int((s == QUALIFIED).sum())))
-    out = pd.concat([c, r, k, leads], axis=1).fillna(0).sort_index()
+    leads = ds.leads.groupby("month").agg(leads=("source", "size"))
+    net = _net_leads(ds).groupby("month").agg(net_leads=("source", "size"))
+    out = pd.concat([c, r, k, leads, net], axis=1).fillna(0).sort_index()
     out.index = pd.Index([Month.from_key(m).label for m in out.index], name="month")
     return out.astype({c: "int64" for c in ["cost_lines", "deals", "kpi_events", "leads", "net_leads"]})
 
@@ -35,12 +39,12 @@ def sources_overview(ds: Dataset, settings: dict) -> pd.DataFrame:
     non = set(settings.get("non_marketing", []))
     cost = ds.costs[~ds.costs["source"].isin(non)].groupby("source")["cost"].sum().rename("cost")
     deals = ds.revenues.groupby("source").agg(deals=("revenue", "size"), revenue=("revenue", "sum"))
-    leads_df = ds.kpis[ds.kpis["kpi"] == LEAD_KPI]
-    leads = leads_df.groupby("source").agg(
-        leads=("kpi", "size"), net_leads=("quality", lambda s: int((s == QUALIFIED).sum())))
-    out = pd.concat([cost, deals, leads], axis=1).fillna(0)
+    leads = ds.leads.groupby("source").agg(leads=("month", "size"))
+    net = _net_leads(ds).groupby("source").agg(net_leads=("month", "size"))
+    out = pd.concat([cost, deals, leads, net], axis=1).fillna(0)
     out["in_tabs"] = [
-        "/".join(t for t, present in (("C", s in cost.index), ("R", s in deals.index), ("K", s in leads.index))
+        "/".join(t for t, present in (("C", s in cost.index), ("R", s in deals.index),
+                                                     ("K", s in leads.index or s in net.index))
                  if present) for s in out.index]
     return out.astype({"deals": "int64", "leads": "int64", "net_leads": "int64"}).sort_values(
         ["cost", "leads"], ascending=False)
@@ -121,15 +125,17 @@ def to_markdown(ds: Dataset, settings: dict) -> str:
         "## COSTS names and proposed split",
         _md_table(costs_names(ds, settings), money=("total",)),
         "## Sources across tabs (C = COSTS, R = REVENUES, K = KPIs Lead rows)",
+        "leads = All Leads by Date Created; net_leads = Qualified, by the Quality-change Date.\n",
         _md_table(sources_overview(ds, settings), money=("cost", "revenue")),
     ]
     for name, df in value_counts(ds).items():
         out += [f"## Distinct values: {name}", _md_table(df, money=("revenue",))]
     b = ds.blank_kpi_dates
-    out += ["## Blank KPI Dates (excluded from counts)",
+    out += ["## Blank KPI Dates (excluded from KPI counts; Pending leads still count in All Leads)",
             f"{b.count:,} rows. By Quality: " + ", ".join(f"{k}: {v:,}" for k, v in b.by_quality.most_common())
             + ". By KPI: " + ", ".join(f"{k}: {v:,}" for k, v in b.by_kpi.most_common())
-            + f". Created on/after {ds.start}: {b.created_since_start:,}.\n"]
+            + f". Created on/after {ds.start}: {b.created_since_start:,}"
+            + f" ({b.leads_counted:,} Lead rows counted in All Leads by Date Created).\n"]
     m, n = address_match_rate(ds)
     out += ["## Address match (REVENUES street → KPIs address)",
             f"{m:,} of {n:,} REVENUES rows match a KPI address ({(m / n * 100) if n else 0:.0f}%).\n",

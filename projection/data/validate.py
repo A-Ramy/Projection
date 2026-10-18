@@ -137,7 +137,7 @@ def validate(ds: Dataset, settings: dict) -> list[Issue]:
                          detail="Each row counts as a deal (your rule); revenue is summed. Review for staged payouts.",
                          count=len(dup_examples), examples=dup_examples[:MAX_EXAMPLES]))
 
-    lead_sources = set(kpis.loc[kpis["kpi"] == LEAD_KPI, "source"])
+    lead_sources = set(kpis.loc[kpis["kpi"] == LEAD_KPI, "source"]) | set(ds.leads["source"])
     no_leads = sorted(s for s in set(revs["source"]) if s.strip() and s not in lead_sources)
     if no_leads:
         out.append(Issue("warning", TAB_REVENUES, "deals_without_leads",
@@ -151,7 +151,8 @@ def validate(ds: Dataset, settings: dict) -> list[Issue]:
         q = ", ".join(f"{k}: {v:,}" for k, v in b.by_quality.most_common())
         out.append(Issue("info", TAB_KPIS, "blank_kpi_dates",
                          f"KPIs: {b.count:,} rows with a blank Date (not triggered yet, excluded)",
-                         detail=f"By Quality: {q}. Created on/after {start}: {b.created_since_start:,}.",
+                         detail=f"By Quality: {q}. Created on/after {start}: {b.created_since_start:,}, of which "
+                                f"{b.leads_counted:,} Pending leads still count in All Leads by Date Created.",
                          count=b.count))
     counts = kpis["kpi"].value_counts()
     unknown = [(k, n) for k, n in counts.items() if k not in KPI_STAGES]

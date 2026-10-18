@@ -14,7 +14,8 @@ import pandas as pd
 
 from projection.data.keys import addr_key, lead_key
 from projection.data.parse import CellError, TabRows, is_blank, to_datetime, to_money, to_text
-from projection.data.schema import TAB_COSTS, TAB_KPIS, TAB_REVENUES, Issue
+from projection.data.schema import LEAD_KPI, TAB_COSTS, TAB_KPIS, TAB_REVENUES, Issue
+from projection.funnel_config import KPI_STAGES
 from projection.periods import Month
 
 COSTS_FRAME = ["date", "month", "source", "cost", "cost_blank", "sheet_row"]
@@ -26,6 +27,17 @@ KPIS_FRAME = [
     "date", "month", "created", "kpi", "quality", "stage", "acq", "source", "fus", "lead_agent",
     "addr_key", "lead_key", "sheet_row",
 ]
+# One row per KPI = Lead row, counted in All Leads by Date Created (date = Quality-change date, NaT = Pending)
+LEADS_FRAME = [
+    "created", "month", "date", "quality", "source", "acq", "fus", "lead_agent", "addr_key", "lead_key",
+    "sheet_row",
+]
+_STAGE_SPELLING = {s.casefold(): s for s in KPI_STAGES}
+
+
+def canonical_kpi(kpi: str) -> str:
+    """KPI values match funnel stages case-insensitively ("No-Show" -> "No-show")."""
+    return _STAGE_SPELLING.get(kpi.casefold(), kpi)
 
 
 @dataclass
@@ -42,6 +54,7 @@ class BlankKpiDates:
     by_quality: Counter = field(default_factory=Counter)
     by_kpi: Counter = field(default_factory=Counter)
     created_since_start: int = 0
+    leads_counted: int = 0  # blank-Date (Pending) Lead rows counted in All Leads by Date Created
 
 
 class _Bad:
@@ -153,10 +166,15 @@ def clean_revenues(tr: TabRows, start: date) -> tuple[pd.DataFrame, TabStats, li
 
 def clean_kpis(
     tr: TabRows, links: dict[int, str], start: date
-) -> tuple[pd.DataFrame, TabStats, BlankKpiDates, list[Issue]]:
-    """KPI events counted by their trigger Date. Rows with a blank Date haven't triggered yet."""
+) -> tuple[pd.DataFrame, pd.DataFrame, TabStats, BlankKpiDates, list[Issue]]:
+    """KPI events counted by their trigger Date (blank Date = not triggered yet), plus the Lead rows.
+
+    Lead rows are also returned as their own frame, counted by Date Created (All Leads): on a Lead row,
+    Date is the Quality-change date, so a blank Date means the lead is still Pending.
+    """
     stats, bad, rows, blank = TabStats(blank_rows=tr.blank_rows), _Bad(TAB_KPIS), [], BlankKpiDates()
-    bad_created = 0
+    leads: list[dict] = []
+    bad_created, lead_no_created = 0, []
     for rec in tr.records:
         r = rec["sheet_row"]
         try:
@@ -168,33 +186,45 @@ def clean_kpis(
             created = to_datetime(rec.get("created"))
         except CellError:
             created, bad_created = None, bad_created + 1
-        kpi, quality = to_text(rec.get("kpi")).strip(), to_text(rec.get("quality")).strip()
+        kpi, quality = canonical_kpi(to_text(rec.get("kpi")).strip()), to_text(rec.get("quality")).strip()
         stats.rows_with_content += 1
+        addr = addr_key(to_text(rec.get("address")))
+        common = {
+            "quality": quality, "source": to_text(rec.get("source")), "acq": to_text(rec.get("acq")).strip(),
+            "fus": to_text(rec.get("fus")).strip(), "lead_agent": to_text(rec.get("lead_agent")).strip(),
+            "addr_key": addr, "lead_key": lead_key(links.get(r, "")) or (f"addr:{addr}" if addr else ""),
+            "sheet_row": r,
+        }
+        if kpi == LEAD_KPI:
+            if created is None:
+                lead_no_created.append(f"row {r}")
+            elif created.date() >= start:
+                leads.append({"created": created, "month": Month.of(created).key, "date": d, **common})
         if d is None:
             blank.count += 1
             blank.by_quality[quality or "(blank)"] += 1
             blank.by_kpi[kpi or "(blank)"] += 1
             if created is not None and created.date() >= start:
                 blank.created_since_start += 1
+                if kpi == LEAD_KPI:
+                    blank.leads_counted += 1
             continue
         if d.date() < start:
             stats.before_start += 1
             continue
-        rows.append({
-            "date": d, "month": Month.of(d).key, "created": created, "kpi": kpi, "quality": quality,
-            "stage": to_text(rec.get("stage")).strip(), "acq": to_text(rec.get("acq")).strip(),
-            "source": to_text(rec.get("source")), "fus": to_text(rec.get("fus")).strip(),
-            "lead_agent": to_text(rec.get("lead_agent")).strip(),
-            "addr_key": addr_key(to_text(rec.get("address"))),
-            "lead_key": lead_key(links.get(r, "")), "sheet_row": r,
-        })
+        rows.append({"date": d, "month": Month.of(d).key, "created": created, "kpi": kpi,
+                     "stage": to_text(rec.get("stage")).strip(), **common})
     issues = bad.issue()
     if bad_created:
-        issues.append(Issue("info", TAB_KPIS, "bad_created",
-                            "KPIs: unreadable Date Created values (informational only)", count=bad_created))
+        issues.append(Issue("info", TAB_KPIS, "bad_created", "KPIs: unreadable Date Created values", count=bad_created,
+                            detail="Lead rows need Date Created to be counted in All Leads."))
+    if lead_no_created:
+        issues.append(Issue("warning", TAB_KPIS, "lead_no_created",
+                            "KPIs: Lead rows without a Date Created (not counted in All Leads)",
+                            count=len(lead_no_created), examples=lead_no_created[:8]))
     df = _frame(rows, KPIS_FRAME, ("date", "created"))
     stats.kept = len(df)
-    return df, stats, blank, issues
+    return df, _frame(leads, LEADS_FRAME, ("created", "date")), stats, blank, issues
 
 
 def links_by_row(values: list[list]) -> dict[int, str]:

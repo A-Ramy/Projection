@@ -37,6 +37,7 @@ class Dataset:
     costs: pd.DataFrame
     revenues: pd.DataFrame
     kpis: pd.DataFrame
+    leads: pd.DataFrame  # one row per KPI = Lead row, by Date Created (All Leads)
     start: date
     today: date
     timezone: str
@@ -70,12 +71,12 @@ def build_dataset(raw: RawSheet, settings: dict, today: date | None = None,
     revs, rst, iss = clean_revenues(trs[TAB_REVENUES], start)
     issues += iss
     links = links_by_row(raw.values.get("KPIS_LINK", []))
-    kpis, kst, blank, iss = clean_kpis(trs[TAB_KPIS], links, start)
+    kpis, leads, kst, blank, iss = clean_kpis(trs[TAB_KPIS], links, start)
     issues += iss
     del links  # GHL links are only used to derive lead_key
 
-    ds = Dataset(costs=costs, revenues=revs, kpis=kpis, start=start, today=today or now.date(), timezone=tz,
-                 fetched_at=fetched_at or now, stats={TAB_COSTS: cst, TAB_REVENUES: rst, TAB_KPIS: kst},
+    ds = Dataset(costs=costs, revenues=revs, kpis=kpis, leads=leads, start=start, today=today or now.date(),
+                 timezone=tz, fetched_at=fetched_at or now, stats={TAB_COSTS: cst, TAB_REVENUES: rst, TAB_KPIS: kst},
                  blank_kpi_dates=blank)
     ds.issues = sorted(issues + validate(ds, settings), key=lambda i: (i.rank, i.tab, i.code))
     return ds

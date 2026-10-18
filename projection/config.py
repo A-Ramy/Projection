@@ -38,6 +38,8 @@ DEFAULT_SETTINGS: dict = {
     "low_conf_min_leads": 30,
     "low_conf_min_deals": 3,
     "scale_cap": 1.5,
+    "lookback_default": "last_quarter",  # last_quarter | last_2_quarters | all | custom
+    "cohort_immature_months": 2,  # recent cohorts flagged as not yet mature
     "cache_ttl_minutes": 10,
 }
 

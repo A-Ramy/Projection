@@ -50,7 +50,8 @@ sync when a rule changes.
   (> 1.5× the source's best quarter since start).
 
 ## Conventions
-- Engine (`projection/`) has no Streamlit imports; Streamlit code lives in `app.py`, `views/`, `ui/`.
+- Engine (`projection/`: `data/` load+clean, `metrics/`, `suggest/`, `model.py` projection payload) has no Streamlit
+  imports; Streamlit code lives in `app.py`, `views/`, `ui/`.
 - Ratios are recomputed from summed parts, never averaged across months.
 - Problems are surfaced as `Issue`s (Data Quality page), never skipped silently.
 - UI: Total Cash Home Buyers brand (indigo #4D458A, red #BD2239, green #109648; Baloo 2 + Nunito Sans),

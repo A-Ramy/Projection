@@ -97,9 +97,9 @@ The engine (`projection/`) has no Streamlit imports, so it is unit-testable and 
   - Costs: `month, source, cost, sheet_row`
   - Revenues: `date, month, address, source, revenue, exit, agent, fus, acq, dispo, dispo_lm, sheet_row`
   - KPIs: `date, month, created, kpi, quality, stage, acq, source, fus, lead_agent, addr_key, lead_key, sheet_row`. `lead_key` is a one-way hash of the GHL contact ID, so one lead's KPI events can be linked for cohort conversions without keeping any identifier. If the link is blank, it falls back to `addr_key`.
-- `projection/metrics/`: `costs.py`, `revenue.py`, `leads.py`, `follow_up.py`, `profit.py`, `pacing.py`, `pta.py`, `cohort.py`, `funnel.py`.
+- `projection/metrics/`: `core.py` (monthly parts, ratios, roll-ups), `follow_up.py`, `quarter.py` (P vs A, P.%/A.%, profit), `pacing.py`, `funnel.py`, `pta.py` (incl. the address cohort).
 - `projection/funnel_config.py`: `FUNNEL_STAGES`, which lists the main path and the leakage stages, and `CONVERSIONS`, which is **your exact list of pairs** with spelling normalized ("Conract", "Rejeceted"). Adding or removing a conversion is a one-line edit.
-- `projection/suggest/`: `lookback.py`, `marketing.py` (D1 + reverse), `revenue.py` (D2), `profit_target.py` (D3, both plans), `guardrails.py`.
+- `projection/suggest/`: `lookback.py`, `marketing.py` (D1 + reverse), `revenue.py` (D2), `profit_target.py` (D3, both plans), `guardrails.py`. The saved projection payload is `projection/model.py`.
 - `projection/storage.py` defines three tables:
   - `settings` (key → JSON): start date, non-marketing names, % base exclusions, CPL basis, confidence thresholds, scale cap of 1.5, source colors.
   - `quarter_projections` (quarter_id, status).

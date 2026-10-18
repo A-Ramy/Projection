@@ -131,3 +131,18 @@ def test_active_list_decides_own_rows_and_follow_up(ds):
     codes = {i.code: i for i in build_dataset(mf.raw_sheet(), s, today=mf.TODAY).issues}
     assert codes["active_not_found"].examples == ["Brand New"]
     assert codes["spend_not_active"].examples == ["Mailer C: $2,000"]
+
+
+def test_old_save_keeps_its_spend_and_missing_active_sources_can_be_added(ds):
+    from projection.model import CostLine
+    from projection.plan import add_active_sources
+
+    old = QuarterProjection(quarter_id="2026-Q4", marketing=[CostLine(source="SEO B", p_cost=4000),
+                                                             CostLine(source="Hand Typed")])
+    r = rows(ds, old)
+    assert r["SEO B"].spend == 4000 and r["SEO B"].driver.kind == "spend"  # no drivers saved: keeps its spend
+    added = add_active_sources(old, ds, Q4, S)
+    assert added == ["PPC A", "Mailer C", "SELF GEN"]
+    assert [c.source for c in old.marketing] == ["PPC A", "SEO B", "Mailer C", "SELF GEN", "Hand Typed"]
+    assert next(c for c in old.marketing if c.source == "SEO B").p_cost == 4000  # what you typed stays
+    assert next(c for c in old.marketing if c.source == "PPC A").p_cost == 30000

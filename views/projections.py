@@ -17,6 +17,7 @@ from projection.periods import Month, Period, elapsed_days, period_of
 from projection.plan import (
     FOLLOW_UP_KIND,
     NO_COST,
+    add_active_sources,
     backbone,
     prefill,
     set_driver,
@@ -213,6 +214,31 @@ if not bb.months:
 elif not saved:
     h.box(f"Pre-filled with the {bb.label} actuals. Change what you plan to do differently, then <b>Save</b> "
           "(save at the start of the quarter; every version is kept).", "info")
+
+# ---------- a saved quarter that doesn't match the active source list
+active = list(dict.fromkeys(settings.get("active_sources", [])))
+on = [c.source for c in proj.marketing]
+missing, extra = [a for a in active if a not in on], [s for s in on if s not in active]
+if show == "quarter" and active and (missing or extra) and not is_empty(proj):
+    parts = []
+    if missing:
+        parts.append("<b>Active sources missing here:</b> " + ", ".join(h.esc(s) for s in missing))
+    if extra:
+        parts.append("<b>On this projection but not on the active list:</b> " + ", ".join(h.esc(s) for s in extra))
+    h.box("This quarter doesn't match your active source list (Settings). " + " · ".join(parts) + ". "
+          "<b>Rebuild From Backbone</b> starts over from the backbone with exactly the active sources; <b>Add Missing "
+          "Active Sources</b> keeps what you typed and adds the missing ones (remove others with the Remove box).",
+          "warn")
+    with st.container(horizontal=True):
+        if st.button("Rebuild From Backbone", type="primary", icon=":material/restart_alt:", disabled=not bb.months,
+                     key=f"rebuild_{qid}_{ver}"):
+            put(prefill(ds, period, settings, proj))
+            st.rerun()
+        if missing and st.button("Add Missing Active Sources", icon=":material/playlist_add:",
+                                 key=f"addact_{qid}_{ver}"):
+            add_active_sources(proj, ds, period, settings)
+            put(proj)
+            st.rerun()
 
 # ---------- actions
 a = st.columns([1.1, 1.1, 1.8, 3.4], vertical_alignment="bottom")

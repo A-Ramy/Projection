@@ -156,13 +156,16 @@ def derive(driver: Driver, unit: Unit, allocated: float,
 
 def source_rows(p: QuarterProjection, bb: Backbone, settings: dict) -> list[SourceRow]:
     out = []
+    saved_cost = {c.source: c.p_cost for c in p.marketing}
     for src in [c.source for c in p.marketing] + [FOLLOW_UP]:
         lines = [r for r in p.revenue if r.source == src]
         if src == FOLLOW_UP and not lines and FOLLOW_UP not in p.drivers:
             continue
         unit = bb.units.get(src) or Unit(src)
         alloc_d, alloc_r = sum(r.p_deals for r in lines), sum(r.p_revenue for r in lines)
-        driver = p.drivers.get(src) or Driver()
+        # a projection saved before drivers existed keeps its saved spend
+        driver = p.drivers.get(src) or (Driver(kind="spend", value=saved_cost[src], typed=True)
+                                        if saved_cost.get(src) else Driver())
         spend, deals, revenue = derive(driver, unit, alloc_d, alloc_r)
         kind = FOLLOW_UP_KIND if src == FOLLOW_UP else (NO_COST if unit.cpd == 0 else MARKETING)
         out.append(SourceRow(src, kind, unit, driver, spend, deals, revenue, alloc_d, alloc_r))
@@ -240,6 +243,24 @@ def prefill(ds: Dataset, period: Period, settings: dict, base: QuarterProjection
                                                                   / q, 2)))
     sync_costs(p, backbone(ds, p, period), settings)
     return p
+
+
+def add_active_sources(p: QuarterProjection, ds: Dataset, period: Period, settings: dict) -> list[str]:
+    """Add the active sources missing from p, each as the backbone would start it (spend driver and exit rows);
+    typed values on the other sources are kept. Returns the names added."""
+    have = {c.source for c in p.marketing}
+    fresh = prefill(ds, period, settings, p)
+    added = [c.source for c in fresh.marketing if c.source not in have]
+    for src in added:
+        p.marketing.append(next(c for c in fresh.marketing if c.source == src))
+        if src in fresh.drivers:
+            p.drivers[src] = fresh.drivers[src]
+        p.revenue += [r for r in fresh.revenue if r.source == src]
+    order = {s: i for i, s in enumerate(dict.fromkeys(settings.get("active_sources", [])))}
+    p.marketing.sort(key=lambda c: order.get(c.source, len(order)))
+    _sort(p)
+    sync_costs(p, backbone(ds, p, period), settings)
+    return added
 
 
 def use_plan(p: QuarterProjection, plan, bb: Backbone, settings: dict) -> None:

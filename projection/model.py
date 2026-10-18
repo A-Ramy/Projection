@@ -43,6 +43,8 @@ class QuarterProjection(BaseModel):
     non_marketing: list[CostLine] = Field(default_factory=list)
     revenue: list[RevenueLine] = Field(default_factory=list)
     lookback: str = "last_quarter"
+    lookback_from: str | None = None  # custom lookback, month keys "YYYY-MM"
+    lookback_to: str | None = None
     profit_target: float | None = None
 
     def sources_in_block(self, block: str) -> set[str]:

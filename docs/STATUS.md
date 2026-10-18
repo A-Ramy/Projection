@@ -17,7 +17,7 @@
 | 5 | Phase b: metrics engine + tests | Claude | All tests pass, incl. $37,500 and Follow Up roll-up | **Done** (2026-10-18) |
 | 6 | Phase c: Projections tab, saved quarters | Claude | Q1–Q3 totals reconcile to the sheet | **Done** (2026-10-18) |
 | 7 | First deploy: Neon + Streamlit Community Cloud (private, invited emails) | Owner with Claude | Team opens the URL; uninvited account blocked | **Done** (2026-10-18) |
-| 8 | Phase d: suggestions, overrides, guardrails, D3 profit target | Claude | Owner reviews Q4 suggestions | **Next** |
+| 8 | Phase d: suggestions, overrides, guardrails, D3 profit target | Claude | Owner reviews Q4 suggestions | **Built, awaiting owner review** |
 | 9 | Phase e: PTA tab, then Funnel tab | Claude | Owner review | Not started |
 | 10 | Phase f: glass styling, light/dark toggle, Title Case, charts, quarter history | Claude | Owner review against the mockup | Not started |
 | 11 | First real run: Q4 2026 suggestions from Q1–Q3, Q4 actuals and pacing | Claude | Owner review | Not started |
@@ -25,6 +25,11 @@
 | 13 | Final README + CLAUDE.md | Claude | Done | Not started |
 
 ## Done so far
+- Step 8 built (2026-10-18): suggestions on the Projections tab (`projection/suggest/quarter.py`): window picker
+  (only cost-complete months before the quarter), Suggested + Accept per line, Accept All (never replaces typed
+  values), 🟠 Override when typing over an accepted value, drift note when the suggestion moves, implied
+  leads/deals for any budget, guardrail notes, formula explanations, Profit Target panel with Plans A and B.
+  Verified in Chromium on live data (Q4 learns from Jul–Sep 2026). Awaiting the owner's Q4 review.
 - Step 7 (2026-10-18, owner): deployed at https://tchb-projection.streamlit.app/ from this branch (main file
   `app.py`, Python 3.12), secrets in Streamlit Cloud (key, SHEET_ID, Neon `DATABASE_URL`), app private with
   invited viewers; owner confirmed Q3 2026 loads and an uninvited account is blocked. **Every push to this

@@ -21,7 +21,7 @@ def sidebar(ds: Dataset | None) -> None:
             st.caption(f"Data from {ds.start:%b %-d, %Y} onward · refreshed {ds.fetched_at:%-I:%M %p}")
         if demo_mode():
             st.warning("Sample data (developer preview)")
-        if st.button("Refresh data", icon=":material/refresh:", use_container_width=True):
+        if st.button("Refresh data", icon=":material/refresh:", width="stretch"):
             refresh()
             st.rerun()
 

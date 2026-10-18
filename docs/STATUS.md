@@ -15,8 +15,8 @@
 | 3 | Owner reviews report (KPI/Quality/Stage values vs 15 funnel stages, duplicates, blank KPI dates, near-duplicate names, revenue sources with no leads, address match rate) | Owner | Owner confirms names and counting rules | **Done** (2026-10-18) |
 | 4 | Finalize metric definitions from the real values | Claude → Owner | Owner approves | **Done** (2026-10-18) |
 | 5 | Phase b: metrics engine + tests | Claude | All tests pass, incl. $37,500 and Follow Up roll-up | **Done** (2026-10-18) |
-| 6 | Phase c: Projections tab, saved quarters | Claude | Q1–Q3 totals reconcile to the sheet | **Next** |
-| 7 | First deploy: Neon + Streamlit Community Cloud (private, invited emails) | Owner with Claude | Team opens the URL; uninvited account blocked | Not started |
+| 6 | Phase c: Projections tab, saved quarters | Claude | Q1–Q3 totals reconcile to the sheet | **Done** (2026-10-18) |
+| 7 | First deploy: Neon + Streamlit Community Cloud (private, invited emails) | Owner with Claude | Team opens the URL; uninvited account blocked | **Next** |
 | 8 | Phase d: suggestions, overrides, guardrails, D3 profit target | Claude | Owner reviews Q4 suggestions | Not started |
 | 9 | Phase e: PTA tab, then Funnel tab | Claude | Owner review | Not started |
 | 10 | Phase f: glass styling, light/dark toggle, Title Case, charts, quarter history | Claude | Owner review against the mockup | Not started |
@@ -25,6 +25,11 @@
 | 13 | Final README + CLAUDE.md | Claude | Done | Not started |
 
 ## Done so far
+- Step 6 (2026-10-18): Projections tab (`views/projections.py`, logic in `projection/planning.py`): quarter picker
+  (start → next quarter), editable Marketing / Non-Marketing cost lines and Revenue / Fix & Flip / Buy & Hold
+  lines, Other marketing (unprojected), Follow Up drill-down, summary + pacing, month-by-month, Save / Discard /
+  Copy previous quarter / Add lines for actuals, revision history. Live check: Q1–Q3 actual costs and revenue
+  reconcile exactly to the sheet; editing, removing and saving verified in Chromium.
 - Step 5 (2026-10-18): metrics engine `projection/metrics/` (core parts and ratios, Follow Up, quarter view with
   P.%/A.% and profit, pacing, funnel, PTA), suggestions `projection/suggest/` (lookback, D1 budget + reverse,
   guardrails, D2 revenue, D3 plans A/B), projection payload `projection/model.py`. Pending leads now kept

@@ -181,7 +181,29 @@ def validate(ds: Dataset, settings: dict) -> list[Issue]:
                              examples=[f"row {r.sheet_row}: {_d(r.date)} {r.kpi}" for r in fut.itertuples()]
                              [:MAX_EXAMPLES]))
 
+    # --- the owner's active sources (projected on their own) vs what the sheet holds
+    active = list(dict.fromkeys(settings.get("active_sources", [])))
+    seen = set(costs["source"]) | set(revs["source"]) | set(kpis["source"]) | set(ds.leads["source"])
+    missing = [a for a in active if a not in seen]
+    if missing:
+        out.append(Issue("warning", "ALL", "active_not_found",
+                         "Active sources with no rows in the sheet under this exact name",
+                         detail="They still get a row on Projections, but no actuals can attach to them. Check the "
+                                "spelling, or rename the sheet's entries to match.",
+                         count=len(missing), examples=missing))
     non_mkt = set(settings.get("non_marketing", []))
+    if active:
+        recent = sorted(costs["month"].unique())[-3:]  # the last three months with costs posted
+        stray = costs[costs["month"].isin(recent) & ~costs["source"].isin(set(active) | non_mkt)]
+        stray = stray.groupby("source")["cost"].sum()
+        stray = stray[stray > 0].sort_values(ascending=False)
+        if len(stray):
+            out.append(Issue("warning", TAB_COSTS, "spend_not_active",
+                             "COSTS: recent marketing spend on sources that aren't on the active list",
+                             detail="Last three months with costs. Shown as Other marketing (unprojected) and not "
+                                    "projected. Add them to the active "
+                                    "list in Settings, or rename them to the active source they belong to.",
+                             count=len(stray), examples=[f"{s}: {_money(v)}" for s, v in stray.items()]))
     mkt_no_leads = sorted(s for s in set(costs["source"]) if s not in non_mkt and s not in lead_sources)
     if mkt_no_leads:
         out.append(Issue("info", TAB_COSTS, "spend_without_leads",

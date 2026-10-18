@@ -43,7 +43,7 @@ MONEY = st.column_config.NumberColumn(format="dollar")
 COUNT = st.column_config.NumberColumn(format="%.2f")
 NAN = float("nan")
 SET_BY = {"spend": "Spend", "revenue": "Revenue", "deals": "Deals", "exits": "Exit Rows"}
-KIND = {"marketing": "Marketing", NO_COST: "No Cost", FOLLOW_UP_KIND: "Follow Up"}
+KIND = {"marketing": "Marketing", NO_COST: "No Spend", FOLLOW_UP_KIND: "Follow Up"}
 BACKBONES = {"last_quarter": "Last Quarter", "last_2_quarters": "Last 2 Quarters", "all": "All Since Start",
              "custom": "Custom"}
 
@@ -336,7 +336,7 @@ if edit:
             put(proj)
             st.rerun()
         with st.popover("Add Source", icon=":material/add:"):
-            mkt = marketing_names(ds, settings) | set(settings.get("own_no_cost_sources", []))
+            mkt = (marketing_names(ds, settings) | set(ds.revenues["source"]) | set(ds.leads["source"])) - {""}
             on = {c.source for c in proj.marketing}
             pick = st.selectbox("From The Sheet", ["—"] + sorted(mkt - on), key=f"add_src_{qid}")
             typed = st.text_input("Or Type A Name", key=f"add_src_typed_{qid}",

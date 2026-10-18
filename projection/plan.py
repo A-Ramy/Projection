@@ -10,8 +10,8 @@ The deals are then placed on exit rows (Source × Exit, typed by you); any diffe
 A source's projected revenue = its exit rows' revenue + deals not yet placed × its avg deal (a typed revenue counts
 as typed); projected cost is the derived spend.
 
-Sources: marketing sources with spend, the no-cost sources projected on their own (setting own_no_cost_sources,
-e.g. SELF GEN, Referral), and Follow Up: one group for every other source, projected by revenue or deals.
+Sources: the active sources (setting active_sources, in that order), each projected on its own (no-cost ones such
+as SELF GEN and Referral by revenue or deals), and Follow Up: one group for every other source.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 from projection.data.load import Dataset
 from projection.data.schema import block_of
-from projection.metrics.core import cost_complete_months, in_months, marketing_names, ratio
+from projection.metrics.core import cost_complete_months, in_months, ratio
 from projection.model import BLOCKS, FOLLOW_UP, CostLine, Driver, QuarterProjection, RevenueLine
 from projection.periods import Month, Period
 from projection.suggest.lookback import label
@@ -155,7 +155,6 @@ def derive(driver: Driver, unit: Unit, allocated: float,
 
 
 def source_rows(p: QuarterProjection, bb: Backbone, settings: dict) -> list[SourceRow]:
-    own = set(settings.get("own_no_cost_sources", []))
     out = []
     for src in [c.source for c in p.marketing] + [FOLLOW_UP]:
         lines = [r for r in p.revenue if r.source == src]
@@ -165,7 +164,7 @@ def source_rows(p: QuarterProjection, bb: Backbone, settings: dict) -> list[Sour
         alloc_d, alloc_r = sum(r.p_deals for r in lines), sum(r.p_revenue for r in lines)
         driver = p.drivers.get(src) or Driver()
         spend, deals, revenue = derive(driver, unit, alloc_d, alloc_r)
-        kind = FOLLOW_UP_KIND if src == FOLLOW_UP else (NO_COST if src in own or unit.cpd == 0 else MARKETING)
+        kind = FOLLOW_UP_KIND if src == FOLLOW_UP else (NO_COST if unit.cpd == 0 else MARKETING)
         out.append(SourceRow(src, kind, unit, driver, spend, deals, revenue, alloc_d, alloc_r))
     return out
 
@@ -207,21 +206,19 @@ def _sort(p: QuarterProjection) -> None:
 
 
 def prefill(ds: Dataset, period: Period, settings: dict, base: QuarterProjection) -> QuarterProjection:
-    """The backbone repeated: every source with spend or deals, its exit rows, Follow Up, and non-marketing lines,
-    each at its per-quarter backbone value. Keeps the base's quarter id and backbone choice."""
+    """The backbone repeated: every active source (with its backbone spend and exit rows), Follow Up for every other
+    source's deals, and the non-marketing lines, each at its per-quarter backbone value. Keeps the base's quarter id
+    and backbone choice."""
     p = QuarterProjection(quarter_id=base.quarter_id, lookback=base.lookback, lookback_from=base.lookback_from,
                           lookback_to=base.lookback_to, profit_target=base.profit_target)
     months = history_months(ds, period, p)
     q = len(months) / 3 or 1
     costs, revs = in_months(ds.costs, months), in_months(ds.revenues, months)
-    mkt, own = marketing_names(ds, settings), set(settings.get("own_no_cost_sources", []))
-    spent = costs[costs["source"].isin(mkt)].groupby("source")["cost"].sum()
-    for src, v in spent[spent > 0].sort_values(ascending=False).items():
+    spent = costs.groupby("source")["cost"].sum()
+    for src in dict.fromkeys(settings.get("active_sources", [])):
         p.marketing.append(CostLine(source=src))
-        p.drivers[src] = Driver(kind="spend", value=round(float(v) / q, 2))
-    for src in sorted(own & set(revs["source"])):
-        if src not in {c.source for c in p.marketing}:
-            p.marketing.append(CostLine(source=src))
+        if spent.get(src, 0) > 0:
+            p.drivers[src] = Driver(kind="spend", value=round(float(spent[src]) / q, 2))
     projected = {c.source for c in p.marketing}
     for (src, exit_), g in revs[revs["exit"] != ""].groupby(["source", "exit"]):
         key_src = src if src in projected else FOLLOW_UP

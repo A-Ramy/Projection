@@ -28,6 +28,10 @@
 | 13 | Final README + CLAUDE.md | Claude | Done | **Done** (2026-10-18) |
 
 ## Done so far
+- 2026-10-18 owner's active source list (setting `active_sources`): PPC NW RDS, PPC NW SM3, PPC FL RDS, SEO MEGA
+  (TOTALCHB.CO), SEO CARROT (TOTALCHB.COM), SEO (NW WordPress), SEO HESEL (WEBUYSOUTHFL.COM), SEO (GMB TCHB),
+  Facebook Ads (HESEL), SELF GEN, Referral; everything else is Follow Up. Data Quality flags active names not in the
+  sheet and recent spend on names off the list (SEO (CARROT), SEO (WBSFL), Facebook Ads (AM) as of Q3).
 - 2026-10-18 owner redesign of Projections (`projection/plan.py`, `views/projections.py`): backbone = the quarter
   before (switchable), pre-filled automatically; per source type spend / revenue / deals and the rest is derived;
   Source × Exit placement typed by the owner; SELF GEN and Referral projected on their own, other no-cost sources as

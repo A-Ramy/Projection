@@ -33,9 +33,13 @@ DEFAULT_SETTINGS: dict = {
         "General Expenses",
     ],
     "payroll": ["ACQ Payroll", "OPS Payroll", "TC Payroll", "DISPO Payroll"],
-    # No-cost sources projected on their own (by revenue or deals) next to the marketing sources; every other
-    # no-cost source is projected as part of Follow Up.
-    "own_no_cost_sources": ["SELF GEN", "Referral"],
+    # The sources projected on their own (owner's list, 2026-10-18). Every other source is projected as part of
+    # Follow Up. Names must match the sheet exactly; no-cost ones (SELF GEN, Referral) are projected by revenue/deals.
+    "active_sources": [
+        "PPC NW RDS", "PPC NW SM3", "PPC FL RDS", "SEO MEGA (TOTALCHB.CO)", "SEO CARROT (TOTALCHB.COM)",
+        "SEO (NW WordPress)", "SEO HESEL (WEBUYSOUTHFL.COM)", "SEO (GMB TCHB)", "Facebook Ads (HESEL)", "SELF GEN",
+        "Referral",
+    ],
     # Revenue base for P.% and A.%: total revenue minus these exit strategies.
     "pct_base_excluded_exits": ["Fix & Flip", "Buy & Hold"],
     "low_conf_min_leads": 30,

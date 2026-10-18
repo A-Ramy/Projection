@@ -21,7 +21,7 @@ from projection.plan import (
 from projection.suggest.profit_target import Plan, PlanLine
 from tests import metrics_fixture as mf
 
-S = DEFAULT_SETTINGS
+S = {**DEFAULT_SETTINGS, "active_sources": ["PPC A", "SEO B", "Mailer C", "SELF GEN"]}
 Q4 = quarter(2026, 4)
 
 
@@ -119,3 +119,15 @@ def test_backbone_fallback_only_for_typed_numbers(ds):
     assert derive(Driver(kind="spend", value=1000), u, 0) == (1000, None, None)  # pre-filled: repeats the backbone
     assert derive(Driver(kind="spend", value=2000, typed=True), u, 0) == (2000, 4, 40000)  # typed: longer window
     assert CostLine(source="X").p_cost == 0
+
+
+def test_active_list_decides_own_rows_and_follow_up(ds):
+    s = {**DEFAULT_SETTINGS, "active_sources": ["SEO B", "PPC A", "Brand New"]}
+    p = prefill(ds, Q4, s, QuarterProjection(quarter_id="2026-Q4"))
+    assert [c.source for c in p.marketing] == ["SEO B", "PPC A", "Brand New"]  # the list's order, even with no data
+    fu = {r.exit: r.p_deals for r in p.revenue if r.source == FOLLOW_UP}
+    assert fu == {"Fix & Flip": 1, "Retail Listing": 1, "Wholesale": 1}  # SELF GEN is not active here: Follow Up
+    assert "Mailer C" not in {c.source for c in p.marketing}  # spend off the list is not projected
+    codes = {i.code: i for i in build_dataset(mf.raw_sheet(), s, today=mf.TODAY).issues}
+    assert codes["active_not_found"].examples == ["Brand New"]
+    assert codes["spend_not_active"].examples == ["Mailer C: $2,000"]

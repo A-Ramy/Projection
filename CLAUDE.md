@@ -46,8 +46,8 @@ sync when a rule changes.
 - Per source, type ONE of spend / revenue / deals; the rest follows from the backbone cost per deal and avg deal.
   Deals are placed on Source × Exit rows by the owner ("Place Deals By Backbone Mix" is optional help); deals not
   yet placed still count, at the source's avg deal. Avg deal is editable per exit row.
-- Marketing sources with spend; SELF GEN and Referral (setting `own_no_cost_sources`) projected on their own by
-  revenue or deals; every other no-cost source is projected as one **Follow Up** group (e.g. "3 deals").
+- The **active sources** (setting `active_sources`, owner's list) are projected on their own, no-cost ones (SELF GEN,
+  Referral) by revenue or deals; every other source is projected as one **Follow Up** group (e.g. "3 deals").
 - A source with spend but no backbone deals uses the longer window's cost per deal, only for numbers you type.
 - Non-marketing lines start at the backbone cost and are typed. "Work Back From A Profit Target" is optional.
 

@@ -61,3 +61,14 @@ CONVERSIONS: list[tuple[str, str]] = [
 ]
 ADDED = [("Lead", NET_LEAD), (NET_LEAD, "Appointment Set"), (NET_LEAD, "Closed Deal")]
 ALL_CONVERSIONS = ADDED + CONVERSIONS
+
+# The stage(s) each stage is measured against for "from previous" (the main path, plus where each leak comes from).
+PREVIOUS: dict[str, list[str]] = {
+    NET_LEAD: ["Lead"], "Lead Assigned": ["Lead"], "Appointment Set": ["Lead Assigned"],
+    LIVE_TRANSFER: ["Lead Assigned"], "Appointment Held": ["Appointment Set"],
+    "Offer Made": ["Appointment Held", LIVE_TRANSFER], "Contract Sent": ["Offer Made"],
+    "Contract Signed": ["Contract Sent"], "Closed Deal": ["Contract Signed"],
+    "No-show": ["Appointment Set"], "Appointment Cancelled": ["Appointment Set"],
+    "Live Transfer Unsuccessful": ["Lead Assigned"], "Rejected Offer": ["Offer Made"],
+    "Contract Rejected": ["Contract Sent"], "Cancelled Deal": ["Contract Signed"],
+}

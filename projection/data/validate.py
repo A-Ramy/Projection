@@ -162,9 +162,10 @@ def validate(ds: Dataset, settings: dict) -> list[Issue]:
                          count=len(unknown), examples=[f"{k or '(blank)'}: {n:,}" for k, n in unknown]))
     absent = [s for s in KPI_STAGES if s not in counts.index]
     if absent and len(kpis):
-        out.append(Issue("warning", TAB_KPIS, "missing_stages",
+        out.append(Issue("info", TAB_KPIS, "missing_stages",
                          "KPIs: funnel stages with no rows since the start date",
-                         detail="Check the spelling in GoHighLevel matches the stage list.",
+                         detail="Expected while a stage simply hasn't happened yet (they show 0); otherwise check the "
+                                "spelling in GoHighLevel matches the stage list.",
                          count=len(absent), examples=absent))
     leads = kpis[kpis["kpi"] == LEAD_KPI]
     other_q = leads[~leads["quality"].isin([QUALIFIED, DISQUALIFIED])]["quality"].value_counts()

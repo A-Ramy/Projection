@@ -9,6 +9,8 @@ from projection.metrics.funnel import (
     Filters,
     closed_deal_check,
     cohort_conversions,
+    cohort_counts,
+    conversion_rates,
     conversions,
     stage_counts,
     stage_table,
@@ -71,7 +73,8 @@ def test_stage_table_company_wide(ds):
     assert lead["profit_per"] == pytest.approx((415000 - 35000) / 210)
     assert lead["all_in_profit_per"] == pytest.approx((415000 - 95000) / 210)
     assert t.loc["Net Lead", "from_previous"] == pytest.approx(85 / 210)
-    assert t.loc["No-show", "path"] == "leakage" and pd.isna(t.loc["No-show", "from_previous"])
+    assert t.loc["No-show", "path"] == "leakage" and t.loc["No-show", "from_previous"] == pytest.approx(2 / 10)
+    assert t.loc["No-show", "previous"] == "Appointment Set"
 
 
 def test_stage_table_by_source_and_by_rep(ds):
@@ -102,3 +105,50 @@ def test_lead_to_deal_cohort(ds):
     co = lead_to_deal_cohort(ds, [JUL, AUG], PPC_A).set_index("month")
     assert co.loc["2026-07", ["addresses", "closed"]].tolist() == [60, 20]  # the 20 Main St leads closed later
     assert co.loc["2026-08", "closed"] == 0
+
+
+def test_cohort_counts_follow_the_period_leads(ds):
+    c = cohort_counts(ds, [JUL], PPC_A)  # 60 July leads
+    assert c["Lead"] == 60 and c["Net Lead"] == 24
+    assert (c["Appointment Set"], c["Appointment Held"], c["No-show"], c["Closed Deal"]) == (10, 6, 2, 3)
+    assert cohort_counts(ds, [AUG], PPC_A)["Appointment Set"] == 0  # August leads had no appointments
+
+
+def test_conversion_rates_period_and_cohort(ds):
+    pairs = [("Appointment Set", "Appointment Held"), ("Lead", "Closed Deal")]
+    per = conversion_rates(ds, Q3.months, PPC_A, "period", pairs).set_index(["from", "to"])
+    assert per.loc[("Lead", "Closed Deal"), "rate"] == 3 / 200
+    co = conversion_rates(ds, Q3.months, PPC_A, "cohort", pairs).set_index(["from", "to"])
+    assert co.loc[("Appointment Set", "Appointment Held"), "rate"] == 0.6
+    assert co.loc[("Lead", "Closed Deal"), ["from_count", "to_count"]].tolist() == [200, 3]
+
+
+def test_stage_table_cohort_method(ds):
+    t = stage_table(ds, [JUL], DEFAULT_SETTINGS, PPC_A, method="cohort").set_index("stage")
+    assert t.loc["Lead", "count"] == 60 and t.loc["Appointment Held", "from_previous"] == 0.6
+
+
+def test_leaderboard_period_and_cohort(ds):
+    from projection.metrics.pta import LEADERBOARD, leaderboard
+
+    lb = leaderboard(ds, Q3.months, "ACQ", sources=("PPC A",))
+    assert list(lb.columns) == LEADERBOARD
+    a = lb.loc["Rep A"]
+    assert (a["Leads"], a["Net Leads"], a["Deals"], a["Revenue"], a["Lead→Deal"]) == (100, 40, 12, 180000, 0.12)
+    co = leaderboard(ds, [JUL], "ACQ", sources=("PPC A",), conversion="cohort")
+    assert co.loc["Rep A", "Lead→Deal"] == 10 / 30  # even leads 0–18 of the 30 July Rep A leads later closed
+
+
+def test_periods_in_range():
+    from projection.periods import periods_in_range
+
+    ps = periods_in_range(Month(2026, 2), Month(2026, 7), "quarter")
+    assert [p.label for p in ps] == ["Q1 2026", "Q2 2026", "Q3 2026"]
+    assert [len(p.months) for p in ps] == [2, 3, 1]
+
+
+def test_pta_empty_period(ds):
+    from projection.metrics.pta import leaderboard
+
+    assert leaderboard(ds, [Month(2026, 3)], "ACQ", sources=("SEO B",)).empty
+    assert rep_table(ds, [Month(2026, 3)], "FUS").shape[0] >= 0

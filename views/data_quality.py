@@ -1,11 +1,12 @@
 import streamlit as st
 
 from projection.data import report
+from ui import html as h
 from ui.layout import issue_list
 from ui.state import get_dataset, get_settings
 
 st.title("Data Quality")
-st.caption("Checks run on every refresh. Nothing is dropped silently: anything skipped or adjusted is listed here.")
+h.status("Checks run on every refresh. Nothing is dropped silently: anything skipped or adjusted is listed here.")
 
 ds = get_dataset()
 if ds is None:
@@ -13,22 +14,23 @@ if ds is None:
 settings = get_settings()
 
 sev = {s: sum(1 for i in ds.issues if i.severity == s) for s in ("error", "warning", "info")}
-c = st.columns(6)
-c[0].metric("COSTS lines", f"{ds.stats['COSTS'].kept:,}")
-c[1].metric("REVENUES deals", f"{ds.stats['REVENUES'].kept:,}")
-c[2].metric("KPI events", f"{ds.stats['KPIs'].kept:,}")
-c[3].metric("Blank KPI dates", f"{ds.blank_kpi_dates.count:,}",
-            help="Not triggered yet; excluded from KPI counts. Pending leads still count in All Leads by Date Created.")
-c[4].metric("Errors", sev["error"])
-c[5].metric("To check", sev["warning"])
-st.caption(f"Only data dated {ds.start:%b %-d, %Y} or later is used. Today: {ds.today:%b %-d, %Y} ({ds.timezone}).")
+h.tiles([
+    ("COSTS Lines", f"{ds.stats['COSTS'].kept:,}", f"Since {ds.start:%b %-d, %Y}"),
+    ("REVENUES Deals", f"{ds.stats['REVENUES'].kept:,}", "Every row is a deal"),
+    ("KPI Events", f"{ds.stats['KPIs'].kept:,}", f"{len(ds.leads):,} leads by date created"),
+    ("Blank KPI Dates", f"{ds.blank_kpi_dates.count:,}",
+     f"Not triggered yet; {ds.blank_kpi_dates.leads_counted:,} Pending leads still count in All Leads"),
+    ("To Check", f"{sev['error'] + sev['warning']:,}", f"{sev['error']} errors · {sev['warning']} warnings · "
+     f"{sev['info']} notes"),
+])
+h.status(f"Today: {ds.today:%b %-d, %Y} ({ds.timezone}).")
 
-st.subheader("Issues")
+h.heading("Issues")
 issue_list(ds.issues)
 
 money = st.column_config.NumberColumn(format="dollar")
-st.subheader("What's in the sheet")
-t = st.tabs(["Months", "COSTS names", "Sources", "KPI values", "Reps"])
+h.heading("What's In The Sheet")
+t = st.tabs(["Months", "COSTS Names", "Sources", "KPI Values", "Reps"])
 with t[0]:
     st.dataframe(report.months_overview(ds), column_config={"cost_total": money, "revenue": money})
 with t[1]:

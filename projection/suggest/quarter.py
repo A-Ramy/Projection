@@ -79,3 +79,21 @@ def budget_drift(line: CostLine, s: BudgetSuggestion | None) -> float | None:
     if line.origin != "accepted_suggestion" or s is None or s.budget is None:
         return None
     return s.budget if abs(s.budget - line.p_cost) > DRIFT_TOLERANCE else None
+
+
+def fill_suggestions(p: QuarterProjection, sug: QuarterSuggestions, group: str) -> int:
+    """Accept the suggestion on every empty or previously accepted line of the group ("marketing" or "revenue").
+    Typed values (manual or override) are never replaced. Returns how many lines were filled."""
+    filled = 0
+    if group == "marketing":
+        for line in p.marketing:
+            s = sug.budgets.get(line.source)
+            if s is not None and (line.p_cost == 0 or line.origin == "accepted_suggestion"):
+                filled += accept_budget(line, s)
+    else:
+        for line in p.revenue:
+            s = sug.revenue.get((line.block, line.source, line.exit))
+            empty = line.p_deals == 0 and line.p_avg == 0
+            if s is not None and (empty or line.origin == "accepted_suggestion"):
+                filled += accept_revenue(line, s)
+    return filled

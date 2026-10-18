@@ -55,6 +55,9 @@ sync when a rule changes.
 - Ratios are recomputed from summed parts, never averaged across months.
 - Problems are surfaced as `Issue`s (Data Quality page), never skipped silently.
 - UI: Total Cash Home Buyers brand (indigo #4D458A, red #BD2239, green #109648; Baloo 2 + Nunito Sans),
-  frosted-glass style, Title Case UI text, light/dark toggle, no hover layout shifts.
+  frosted-glass style, Title Case UI text, light/dark toggle, no hover layout shifts. Tokens in `ui/brand.py`,
+  rules in `ui/brand.css`, read-only sheet-style tables via `ui/html.py`; Streamlit's light/dark themes in
+  `.streamlit/config.toml`. Escape `$` in markdown text (it starts math); HTML via `st.html` is safe.
+- Every push to this branch redeploys https://tchb-projection.streamlit.app/: test before pushing.
 - Run `uv run pytest` and `uv run ruff check .` before committing. Regenerate `requirements.txt` when
   dependencies change.

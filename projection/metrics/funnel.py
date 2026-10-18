@@ -16,7 +16,7 @@ import pandas as pd
 
 from projection.data.load import Dataset
 from projection.data.schema import LEAD_KPI
-from projection.funnel_config import ALL_CONVERSIONS, LEAKAGE, MAIN_PATH, NET_LEAD
+from projection.funnel_config import ALL_CONVERSIONS, LEAKAGE, MAIN_PATH, NET_LEAD, PREVIOUS
 from projection.metrics.core import cost_complete_months, in_months, keys, marketing_names, net_lead_rows, ratio
 from projection.periods import Month, Period
 
@@ -97,18 +97,53 @@ def cohort_conversions(ds: Dataset, months: Iterable[Month], filters: Filters = 
     return out
 
 
-def stage_table(ds: Dataset, period: Period | list[Month], settings: dict,
-                filters: Filters = ALL) -> pd.DataFrame:
-    """Count, conversion from the previous main-path stage and from Lead, and money per stage.
+def cohort_reach(ds: Dataset, months: Iterable[Month], filters: Filters = ALL) -> pd.DataFrame:
+    """The lead cohort of the months (leads created then, with a lead_key), and which stages each reached on or
+    after its lead date: one row per lead, one boolean column per stage."""
+    ev = stage_events(ds, filters)
+    ev = ev[ev["lead_key"] != ""]
+    leads = ev[(ev["stage"] == LEAD_KPI) & ev["month"].isin(keys(months))]
+    first = leads.groupby("lead_key")["date"].min()
+    later = ev[ev["lead_key"].isin(first.index)]
+    later = later[later["date"] >= later["lead_key"].map(first)]
+    reach = later.groupby(["lead_key", "stage"]).size().unstack(fill_value=0) > 0
+    return reach.reindex(index=first.index, columns=STAGES, fill_value=False)
 
+
+def cohort_counts(ds: Dataset, months: Iterable[Month], filters: Filters = ALL) -> pd.Series:
+    return cohort_reach(ds, months, filters).sum().reindex(STAGES, fill_value=0).astype(int)
+
+
+def conversion_rates(ds: Dataset, months: Iterable[Month], filters: Filters = ALL, method: str = "period",
+                     pairs: Iterable[tuple[str, str]] = ALL_CONVERSIONS) -> pd.DataFrame:
+    """Every listed pair: period = Count(B) / Count(A); cohort = of the period's leads that reached A, the share
+    that also reached B."""
+    months = list(months)
+    if method == "period":
+        return conversions(stage_counts(ds, months, filters), pairs)
+    reach = cohort_reach(ds, months, filters)
+    rows = []
+    for a, b in pairs:
+        n_a = int(reach[a].sum())
+        n_ab = int((reach[a] & reach[b]).sum())
+        rows.append({"from": a, "to": b, "from_count": n_a, "to_count": n_ab, "rate": ratio(n_ab, n_a)})
+    return pd.DataFrame(rows)
+
+
+def stage_table(ds: Dataset, period: Period | list[Month], settings: dict,
+                filters: Filters = ALL, method: str = "period") -> pd.DataFrame:
+    """Count, conversion from the previous stage(s) and from Lead, and money per stage.
+
+    method "period" counts events dated in the months; "cohort" counts the months' leads that reached each stage.
     Cost and profit per stage use the cost-complete months only (counts and revenue from the same months);
     revenue per stage uses all months. Cost is hidden under a rep filter (costs aren't attributable to reps).
     """
     months = list(period.months) if isinstance(period, Period) else list(period)
     done = set(cost_complete_months(ds))
     cmonths = [m for m in months if m in done]
-    counts = stage_counts(ds, months, filters)
-    ccounts = stage_counts(ds, cmonths, filters)
+    count = cohort_counts if method == "cohort" else stage_counts
+    counts = count(ds, months, filters)
+    ccounts = count(ds, cmonths, filters)
     rev = filters.apply(in_months(ds.revenues, months))["revenue"].sum()
     crev = filters.apply(in_months(ds.revenues, cmonths))["revenue"].sum()
 
@@ -119,11 +154,13 @@ def stage_table(ds: Dataset, period: Period | list[Month], settings: dict,
     all_cost = costs["cost"].sum()
     company = filters.sources is None and not filters.by_rep
 
-    rows, prev = [], None
+    rows = []
     for s in STAGES:
         n, cn = int(counts[s]), int(ccounts[s])
+        prev = sum(int(counts[p]) for p in PREVIOUS.get(s, []))
         row = {"stage": s, "path": "main" if s in MAIN_PATH else "leakage", "count": n,
-               "from_previous": ratio(n, counts[prev]) if prev and s in MAIN_PATH else None,
+               "previous": " + ".join(PREVIOUS.get(s, [])),
+               "from_previous": ratio(n, prev) if s in PREVIOUS else None,
                "from_lead": ratio(n, counts[LEAD_KPI]),
                "revenue_per": ratio(rev, n),
                "cost_per": None if filters.by_rep else ratio(mkt_cost, cn),
@@ -131,8 +168,6 @@ def stage_table(ds: Dataset, period: Period | list[Month], settings: dict,
                "all_in_cost_per": ratio(all_cost, cn) if company else None,
                "all_in_profit_per": ratio(crev - all_cost, cn) if company else None}
         rows.append(row)
-        if s in MAIN_PATH:
-            prev = s
     out = pd.DataFrame(rows)
     out.attrs["cost_months"] = keys(cmonths)
     return out

@@ -75,3 +75,45 @@ def test_typing_over_a_suggestion_is_an_override_and_drift_is_flagged_not_applie
     manual = CostLine(source="X")
     mark_typed(manual)
     assert manual.origin == "manual"
+
+
+def test_start_from_history_then_fill(ds):
+    from projection.model import FOLLOW_UP
+    from projection.planning import lines_from_history, new_projection, unprojected_spend
+    from projection.suggest.quarter import fill_suggestions
+
+    q4 = quarter(2026, 4)
+    empty = new_projection("2026-Q4", S)
+    window = history_months(ds, q4, empty)
+    assert unprojected_spend(empty, ds, window, S) == {"PPC A": 30000, "SEO B": 3000, "Mailer C": 2000}
+    p = lines_from_history(empty, ds, window, S)
+    assert [c.source for c in p.marketing] == ["PPC A", "SEO B", "Mailer C"]
+    assert [(r.block, r.source, r.exit) for r in p.revenue] == [
+        ("main", "PPC A", "Novation Deal"), ("main", "PPC A", "Wholesale"), ("main", "SEO B", "Wholesale"),
+        ("main", FOLLOW_UP, "Retail Listing"), ("main", FOLLOW_UP, "Wholesale"),
+        ("fix_flip", "PPC A", "Fix & Flip"), ("fix_flip", FOLLOW_UP, "Fix & Flip")]
+    assert fill_suggestions(p, quarter_suggestions(ds, p, q4, S), "revenue") == 7
+    lines = {(r.source, r.exit): r for r in p.revenue}
+    assert (lines[("PPC A", "Wholesale")].p_deals, lines[("PPC A", "Wholesale")].p_avg) == (14, 15000)
+    assert (lines[(FOLLOW_UP, "Wholesale")].p_deals, lines[(FOLLOW_UP, "Wholesale")].p_avg) == (1, 20000)
+    assert fill_suggestions(p, quarter_suggestions(ds, p, q4, S), "marketing") == 2  # Mailer C: no deals
+    assert p.marketing[0].p_cost == 30000  # 20 target deals × $1,500
+    assert unprojected_spend(p, ds, window, S) == {}
+
+
+def test_apply_plan_and_scale(ds):
+    from projection.planning import apply_plan, scale_projection
+    from projection.suggest.profit_target import Plan, PlanLine
+
+    p = proj("2026-Q4")
+    p.revenue.append(RevenueLine(block="main", source="PPC A", exit="Novation Deal", p_deals=4))
+    p.revenue[0].p_deals = 14
+    plan = Plan("A", 0, [PlanLine("PPC A", 36, 54000, 0), PlanLine("Mailer C", 2, 1000, 0)])
+    q = apply_plan(p, plan, {"Mailer C": 9000})
+    main = {r.exit: r for r in q.revenue if r.source == "PPC A" and r.block == "main"}
+    assert (main["Wholesale"].p_deals, main["Novation Deal"].p_deals) == (28, 8)
+    assert q.marketing[0].p_cost == 54000 and q.marketing[0].origin == "accepted_suggestion"
+    added = [r for r in q.revenue if r.source == "Mailer C"][0]
+    assert (added.exit, added.p_deals, added.p_avg) == ("Wholesale", 2, 9000)
+    m = scale_projection(q, 1 / 3)
+    assert m.marketing[0].p_cost == pytest.approx(18000) and q.marketing[0].p_cost == 54000

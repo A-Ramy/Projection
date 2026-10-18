@@ -175,3 +175,10 @@ def elapsed_days(period: Period, today: date) -> int:
     if today >= period.end:
         return period.days
     return (today - period.start).days + 1
+
+
+def periods_in_range(first: Month, last: Month, grain: str) -> list[Period]:
+    """Periods of the grain covering first..last, each trimmed to the months inside the range."""
+    months = month_range(first, last)
+    return [Period(p.grain, p.key, p.label, tuple(m for m in p.months if first <= m <= last))
+            for p in periods_covering(months, grain)]

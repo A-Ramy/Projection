@@ -82,6 +82,68 @@ def add_revenue_line(p: QuarterProjection, block: str, source: str, exit_: str) 
     return p
 
 
+def lines_from_history(p: QuarterProjection, ds: Dataset, months: list[Month], settings: dict) -> QuarterProjection:
+    """Add the lines the suggestion window supports: every marketing source with spend, a revenue line for each
+    exit those sources closed under, and a Follow Up line for each exit other sources closed under."""
+    p = p.model_copy(deep=True)
+    mkt = marketing_names(ds, settings)
+    costs = in_months(ds.costs, months)
+    spent = costs[costs["cost"] > 0].groupby("source")["cost"].sum()
+    have = {c.source for c in p.marketing + p.non_marketing}
+    for src in spent.sort_values(ascending=False).index:
+        if src in mkt and src not in have:
+            p.marketing.append(CostLine(source=src))
+    projected = {c.source for c in p.marketing}
+    rows = {(r.block, r.source, r.exit) for r in p.revenue}
+    revs = in_months(ds.revenues, months)
+    for src, exit_ in sorted(set(zip(revs["source"], revs["exit"], strict=True))):
+        key = (block_of(exit_), src if src in projected else FOLLOW_UP, exit_)
+        if exit_ and key not in rows:
+            p.revenue.append(RevenueLine(block=key[0], source=key[1], exit=exit_))
+            rows.add(key)
+    order = {b: i for i, b in enumerate(BLOCKS)}
+    p.revenue.sort(key=lambda r: (order[r.block], r.source == FOLLOW_UP))
+    return p
+
+
+def unprojected_spend(p: QuarterProjection, ds: Dataset, months: list[Month], settings: dict) -> dict[str, float]:
+    """Marketing sources with spend in the months that have no cost line on the projection (largest first)."""
+    on = {c.source for c in p.marketing + p.non_marketing}
+    costs = in_months(ds.costs, months)
+    mkt = marketing_names(ds, settings)
+    spent = costs[costs["source"].isin(mkt - on)].groupby("source")["cost"].sum()
+    return {s: float(v) for s, v in spent[spent > 0].sort_values(ascending=False).items()}
+
+
+def apply_plan(p: QuarterProjection, plan, avg_deal: dict[str, float | None]) -> QuarterProjection:
+    """Use a profit-target plan as the projection: each source's main-block deals are scaled to the plan's deals
+    (or a Wholesale line is added), and its budget set to the plan budget. Both are marked as suggestions."""
+    p = p.model_copy(deep=True)
+    for x in plan.lines:
+        rows = [r for r in p.revenue if r.source == x.source and r.block == "main"]
+        current = sum(r.p_deals for r in rows)
+        if current > 0:
+            for r in rows:
+                r.p_deals, r.origin = round(r.p_deals * x.deals / current, 2), "accepted_suggestion"
+        elif x.deals > 0:
+            p.revenue.append(RevenueLine(block="main", source=x.source, exit="Wholesale", p_deals=round(x.deals, 2),
+                                         p_avg=round(avg_deal.get(x.source) or 0, 2), origin="accepted_suggestion"))
+        for c in p.marketing:
+            if c.source == x.source:
+                c.p_cost, c.origin = round(x.budget, 2), "accepted_suggestion"
+    return p
+
+
+def scale_projection(p: QuarterProjection, factor: float) -> QuarterProjection:
+    """The projection's values × factor (a single month of a quarter = ÷ 3)."""
+    p = p.model_copy(deep=True)
+    for c in p.marketing + p.non_marketing:
+        c.p_cost *= factor
+    for r in p.revenue:
+        r.p_deals *= factor
+    return p
+
+
 # ---------- tables
 COST_COLUMNS = ["source", "kind", "p_cost", "a_cost", "pva_cost", "p_pct", "a_pct", "pva_pct"]
 

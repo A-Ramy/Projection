@@ -5,8 +5,26 @@ company's live Google Sheet "Projection". The sheet is the source of truth and i
 through a Google service account. Projections, overrides and settings live in the app's own
 database, never in the sheet.
 
-Status: Phase a (data connection, 2026+ filtering, monthly grouping, validation). The Projections,
-PTA and Funnel pages arrive in later phases.
+Live (private, invited team only): https://tchb-projection.streamlit.app/ — deployed from this branch; every push
+redeploys it.
+
+## What's in it
+
+- **Projections**: pick a quarter; C profit summary (projected, actual or pacing, end-of-quarter forecast, cost %),
+  A costs (marketing with suggested budgets, payroll and other costs), B revenue (Revenue, Fix & Flip, Buy & Hold
+  blocks with Follow Up), D3 profit target (Plan A most-efficient-first, Plan B keep-the-mix). **Start From
+  Suggestions** fills an empty quarter; **Accept** / **Accept All** never replace typed values (🟠 = override).
+  Whole-quarter or single-month view. Every save is a revision you can reopen.
+- **PTA**: ACQ / FUS leaderboard with ▲▼ vs the previous period, trend per rep, KPI counts by type; period or
+  cohort lead→deal.
+- **Funnel**: lead lifecycle with leaks, cost vs profit per stage, all stages, conversion matrix; period or cohort;
+  by source and by rep.
+- **Data Quality**, **Settings** (start date, non-marketing lines, % base, thresholds, default window),
+  **Backtest** (a finished quarter predicted from the months before it, with errors and MAPE).
+- Total Cash Home Buyers brand (Baloo 2 + Nunito Sans, indigo / red / green, frosted glass) with a Light / Dark
+  switch in the sidebar (it reloads the page once: save first).
+
+Metric definitions: `docs/PLAN.md` §5 and `CLAUDE.md`. Build status: `docs/STATUS.md`.
 
 ## Run it locally
 
@@ -19,7 +37,7 @@ uv run streamlit run app.py  # opens http://localhost:8501
 ```
 
 Without credentials the app shows the setup steps. To look at the UI with the small test fixture
-instead of the live sheet: `PROJECTION_DEMO=1 uv run streamlit run app.py`.
+instead of the live sheet: `PROJECTION_DEMO=1 uv run streamlit run app.py` (uses `tests/metrics_fixture.py`).
 
 ## Connect the sheet (service account, ~10 minutes)
 
@@ -52,6 +70,13 @@ It lists, for data from the start date onward: months covered, COSTS names with 
 marketing / non-marketing split, sources across the three tabs, distinct KPI / Quality / Stage
 values, exit strategies, blank KPI dates, duplicate addresses, and every data issue found.
 
+## Backtest from the command line
+
+```bash
+uv run python scripts/backtest.py                    # Q3 2026 predicted from Q1–Q2 (prints aggregates only)
+uv run python scripts/backtest.py 2026-Q2 last_quarter
+```
+
 ## Tests and lint
 
 ```bash
@@ -78,16 +103,22 @@ Community Cloud installs from `requirements.txt`. Regenerate it after changing d
 ## Layout
 
 ```
-app.py                 entry point and navigation
+app.py                 entry point, navigation, brand injection
 views/                 one file per page
-ui/                    Streamlit helpers (cached loading, sidebar, issue list)
+ui/                    Streamlit helpers: brand.py + brand.css (tokens, glass, light/dark), html.py (sheet-style
+                       tables, tiles, pills), layout.py (sidebar, tab capsule), state.py (cached loading)
 projection/            engine, no Streamlit imports
   config.py            secrets and default settings
   periods.py           monthly grain and roll-ups (quarter, half, year)
   sheets.py            read-only Google Sheets access
   data/                parse → clean (start-date filter first) → validate → report
-  funnel_config.py     funnel stages and conversion pairs
+  metrics/             core parts and ratios, Follow Up, quarter view, pacing, funnel, PTA
+  suggest/             lookback, D1 budgets (+ reverse), guardrails, D2 revenue, D3 plans, per-quarter accept
+  model.py             the saved quarter projection
+  planning.py          Projections-tab logic (start from history, unprojected spend, plans, reconciliation)
+  backtest.py          backtest engine
+  funnel_config.py     funnel stages, conversion pairs, previous-stage map
   storage.py           settings and per-quarter projection history
-scripts/profile.py     data report for the live sheet
-tests/                 pytest suite with a hand-built fixture
+scripts/               profile.py (data report), backtest.py
+tests/                 pytest suite; metrics_fixture.py has hand-worked answers
 ```

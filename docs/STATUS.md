@@ -1,6 +1,9 @@
 # Status and working agreement
 
 ## How we work (owner's instruction)
+- **Update 2026-10-18:** the owner asked to build everything remaining first (branding, suggestions, PTA, Funnel,
+  Settings, Backtest) and then test it all together, instead of reviewing step by step. Steps 8–10, 12 and 13
+  were built in one go; the owner's combined test (step 11 on the live app) is next.
 - Walk the owner through **one step at a time**. Show only the current step; reveal the next one only
   after the current step is **verified done** (by a check Claude runs, or by the owner's confirmation
   where Claude can't check).
@@ -17,14 +20,20 @@
 | 5 | Phase b: metrics engine + tests | Claude | All tests pass, incl. $37,500 and Follow Up roll-up | **Done** (2026-10-18) |
 | 6 | Phase c: Projections tab, saved quarters | Claude | Q1–Q3 totals reconcile to the sheet | **Done** (2026-10-18) |
 | 7 | First deploy: Neon + Streamlit Community Cloud (private, invited emails) | Owner with Claude | Team opens the URL; uninvited account blocked | **Done** (2026-10-18) |
-| 8 | Phase d: suggestions, overrides, guardrails, D3 profit target | Claude | Owner reviews Q4 suggestions | **Built, awaiting owner review** |
-| 9 | Phase e: PTA tab, then Funnel tab | Claude | Owner review | Not started |
-| 10 | Phase f: glass styling, light/dark toggle, Title Case, charts, quarter history | Claude | Owner review against the mockup | Not started |
-| 11 | First real run: Q4 2026 suggestions from Q1–Q3, Q4 actuals and pacing | Claude | Owner review | Not started |
-| 12 | Backtest: Q3 predicted from Q1–Q2 vs Q3 actuals, error per source | Claude | Shown | Not started |
-| 13 | Final README + CLAUDE.md | Claude | Done | Not started |
+| 8 | Phase d: suggestions, overrides, guardrails, D3 profit target | Claude | Owner reviews Q4 suggestions | **Built** · owner review in the combined test |
+| 9 | Phase e: PTA tab, then Funnel tab | Claude | Owner review | **Built** · owner review in the combined test |
+| 10 | Phase f: glass styling, light/dark toggle, Title Case, charts, quarter history | Claude | Owner review against the mockup | **Built** · owner review in the combined test |
+| 11 | First real run: Q4 2026 suggestions from Q1–Q3, Q4 actuals and pacing | Owner with Claude | Owner review | **Next: combined owner test** |
+| 12 | Backtest: Q3 predicted from Q1–Q2 vs Q3 actuals, error per source | Claude | Shown | **Built** (Backtest page + `scripts/backtest.py`) |
+| 13 | Final README + CLAUDE.md | Claude | Done | **Done** (2026-10-18) |
 
 ## Done so far
+- Steps 8–10, 12, 13 built (2026-10-18): brand layer (`ui/brand.py`, `ui/brand.css`, `ui/html.py`; light + dark
+  Streamlit themes in `.streamlit/config.toml`, sidebar toggle writes Streamlit's per-page theme key and reloads),
+  Projections in the mockup layout (C/A/B/D3, Start From Suggestions, unprojected-spend prompts, Use Plan A/B,
+  month view), PTA, Funnel (period + cohort, previous-stage map, matrix), Data Quality cards, editable Settings,
+  Backtest. Chart palette validated for colour-vision deficiency in both themes. Verified headless and in
+  Chromium (light and dark) on live data.
 - Step 8 built (2026-10-18): suggestions on the Projections tab (`projection/suggest/quarter.py`): window picker
   (only cost-complete months before the quarter), Suggested + Accept per line, Accept All (never replaces typed
   values), 🟠 Override when typing over an accepted value, drift note when the suggestion moves, implied

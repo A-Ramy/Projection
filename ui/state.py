@@ -37,7 +37,7 @@ def get_settings() -> dict:
 def _load(sheet_id: str, settings_json: str) -> Dataset:
     settings = json.loads(settings_json)
     if demo_mode():
-        from tests.fixtures import TODAY, raw_sheet
+        from tests.metrics_fixture import TODAY, raw_sheet
 
         return build_dataset(raw_sheet(), settings, today=TODAY)
     return load_dataset(get_secrets(), settings)

@@ -5,10 +5,13 @@
 
 import streamlit as st
 
-from ui.layout import setup_screen, sidebar
+from ui.brand import inject
+from ui.layout import setup_screen, sidebar, tab_capsule
 from ui.state import demo_mode, get_dataset, get_secrets
 
-st.set_page_config(page_title="Projection Tool", page_icon=":material/insights:", layout="wide")
+st.set_page_config(page_title="Projection Tool · Total Cash Home Buyers", page_icon=":material/insights:",
+                   layout="wide")
+inject()
 
 MAIN = [
     st.Page("views/pta.py", title="PTA", icon=":material/groups:", url_path="pta"),
@@ -28,14 +31,6 @@ if not (get_secrets().has_sheet_access or demo_mode()):
     st.stop()
 
 ds = get_dataset()
-sidebar(ds)
-with st.sidebar:
-    st.caption("Tools")
-    for p in TOOLS:
-        st.page_link(p)
-
-cols = st.columns(len(MAIN) + 1, gap="small", vertical_alignment="center")
-for col, p in zip(cols, MAIN, strict=False):
-    col.page_link(p)
-
+sidebar(ds, TOOLS)
+tab_capsule(MAIN)
 page.run()

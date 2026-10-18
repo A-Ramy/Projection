@@ -32,6 +32,9 @@
   (TOTALCHB.CO), SEO CARROT (TOTALCHB.COM), SEO (NW WordPress), SEO HESEL (WEBUYSOUTHFL.COM), SEO (GMB TCHB),
   Facebook Ads (HESEL), SELF GEN, Referral; everything else is Follow Up. Data Quality flags active names not in the
   sheet and recent spend on names off the list (SEO (CARROT), SEO (WBSFL), Facebook Ads (AM) as of Q3).
+  Owner decisions: COSTS "SEO (CARROT)" = "SEO CARROT (TOTALCHB.COM)" and COSTS "SEO (WBSFL)" = "SEO HESEL
+  (WEBUYSOUTHFL.COM)" (owner renames the COSTS entries); "Facebook Ads (HESEL)" is a new Q4 source (no history:
+  spend is typed, deals go on exit rows); Facebook Ads (AM) has ended.
 - 2026-10-18 owner redesign of Projections (`projection/plan.py`, `views/projections.py`): backbone = the quarter
   before (switchable), pre-filled automatically; per source type spend / revenue / deals and the rest is derived;
   Source × Exit placement typed by the owner; SELF GEN and Referral projected on their own, other no-cost sources as

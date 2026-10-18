@@ -117,10 +117,10 @@ All metrics are computed per month, then summed to the period. Ratios are recomp
 
 | Metric | Definition |
 |---|---|
-| Month of a row | COSTS: calendar month of Date. REVENUES: month of Date Closed. KPIs: month of Date (Date Created ignored). Rows before START_DATE (default 2026-01-01) are dropped at load. |
+| Month of a row | COSTS: calendar month of Date. REVENUES: month of Date Closed. KPIs: month of Date (the trigger date), except **All Leads**, which uses the month of Date Created (owner, Step 4). Rows before START_DATE (default 2026-01-01) are dropped at load. |
 | Cost(src, P) | Σ COSTS.Cost for exact Source = src in months of P. Blank cost = $… flagged. |
-| All Leads(src, P) | # KPI rows with KPI = "Lead", Source = src, non-blank Date in P. Other Quality values on dated Lead rows are reported. |
-| Net Leads | All Leads with Quality = "Qualified". **Qualification rate** = Net / All. |
+| All Leads(src, P) | # KPI rows with KPI = "Lead", Source = src, **Date Created** in P (≥ START_DATE), whatever the Quality, including Pending (blank Date). A lead counts once, when it came in, and never moves. On Lead rows, Date is the Quality-change date. |
+| Net Leads | Lead rows with Quality = "Qualified", by **Date** (the Quality-change date) in P. **Qualification rate** = Net / All. |
 | Deals(src, exit, P) | # REVENUES rows (every row = 1 deal, including $… and negative rows) with Date Closed in P. |
 | Revenue | Σ Revenue (losses included). **Avg deal size** = Revenue / Deals. Subtotals are weighted: Σrev / Σdeals. |
 | CPL / Net CPL | Cost / All Leads; Cost / Net Leads. |
@@ -150,7 +150,7 @@ All metrics are computed per month, then summed to the period. Ratios are recomp
 
 | Metric | Definition |
 |---|---|
-| Count(stage, P) | # KPI rows with KPI = stage and Date in P, after filters. Net Lead = Lead rows with Quality = Qualified. |
+| Count(stage, P) | # KPI rows with KPI = stage (case-insensitive) and Date in P, after filters. Lead uses the All Leads rule (Date Created); Net Lead uses the Net Leads rule. Contract Rejected counts the KPI only, not the nurture Stage. |
 | Closed Deal | KPI "Closed Deal" count shown **next to** the REVENUES deal count for the same filters, with any mismatch flagged. Revenue and profit always come from REVENUES. |
 | Conversion A→B (period, default) | Count(B, P) / Count(A, P). Every pair in your list, e.g. Appointment Set → Appointment Held. "Live Transfer" means Successful. |
 | Conversion A→B (cohort) | Of the leads (lead_key) that hit A in month m, the share that hit B on or after that date, at any later time but never before START_DATE. Recent months are flagged immature. |

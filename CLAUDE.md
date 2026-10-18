@@ -17,9 +17,9 @@ sync when a rule changes.
   Filter at load time, row by row (`projection/data/clean.py`).
 - COSTS: Date ≥ start. Each row is a **month total**; bucket by calendar month (dates can be the 27th/30th).
 - REVENUES: Date Closed ≥ start, grouped by month closed.
-- KPIs: **Date** (trigger date) ≥ start. Blank Date = not triggered yet → excluded and counted, except
-  Lead rows: Date there is the Quality-change date, so blank = Pending, and Pending leads count in All Leads
-  by Date Created ≥ start (owner decision, docs/STATUS.md Step 3; finalized in Step 4).
+- KPIs: **Date** (trigger date) ≥ start. Blank Date = not triggered yet → excluded and counted.
+- Except **All Leads**: every KPI = Lead row (any Quality, incl. Pending/blank Date) counts once by
+  **Date Created** ≥ start. Net Leads (Qualified) count by Date, which on Lead rows is the Quality-change date.
 - KPI and Stage names match funnel stages case-insensitively ("No-Show" = No-show).
 - Monthly grain first, then roll up (`projection/periods.py` GRAINS: month, quarter, half, year).
 - A month in progress has no costs. Cost comparisons run through the last cost-complete month and say so;
@@ -43,6 +43,9 @@ sync when a rule changes.
 - Suggested budget = target deals × leads per deal × CPL = target deals × cost per deal. Identical on an
   All Leads or Net Leads (Qualified) basis; show both chains and the implied leads.
 - Test that must pass: $30,000 spend, CPL $150 (200 leads), 20 deals (LPD 10); 25 target deals → $37,500.
+- Deals and revenue come from REVENUES (the KPI Closed Deal count is shown beside it, gaps flagged). Leads per
+  deal and cost per deal use the source's deals across all exits. Default lookback: last completed quarter.
+  Conversions default to same-period (cohort is the alternative view).
 - Guardrails: insufficient data (0 leads or 0 deals), low confidence (< 30 leads or < 3 deals), scale flag
   (> 1.5× the source's best quarter since start).
 

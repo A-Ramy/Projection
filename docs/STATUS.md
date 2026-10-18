@@ -13,8 +13,8 @@
 | 1 | Service account (project "TCHB Projection PTA", account systems@totalchb.com), Sheets API on, JSON key, sheet shared as Viewer, key saved as env var `GOOGLE_SERVICE_ACCOUNT_JSON_B64` | Owner | In a new session: variable present and valid JSON; read-only read of the sheet's tab names succeeds | **Done** (verified 2026-10-18) |
 | 2 | Live data report (`scripts/profile.py`) | Claude | Runs; COSTS totals match the figures in the session handoff message | **Done** (verified 2026-10-18) |
 | 3 | Owner reviews report (KPI/Quality/Stage values vs 15 funnel stages, duplicates, blank KPI dates, near-duplicate names, revenue sources with no leads, address match rate) | Owner | Owner confirms names and counting rules | **Done** (2026-10-18) |
-| 4 | Finalize metric definitions from the real values | Claude → Owner | Owner approves | **Next** |
-| 5 | Phase b: metrics engine + tests | Claude | All tests pass, incl. $37,500 and Follow Up roll-up | Not started |
+| 4 | Finalize metric definitions from the real values | Claude → Owner | Owner approves | **Done** (2026-10-18) |
+| 5 | Phase b: metrics engine + tests | Claude | All tests pass, incl. $37,500 and Follow Up roll-up | **Next** |
 | 6 | Phase c: Projections tab, saved quarters | Claude | Q1–Q3 totals reconcile to the sheet | Not started |
 | 7 | First deploy: Neon + Streamlit Community Cloud (private, invited emails) | Owner with Claude | Team opens the URL; uninvited account blocked | Not started |
 | 8 | Phase d: suggestions, overrides, guardrails, D3 profit target | Claude | Owner reviews Q4 suggestions | Not started |
@@ -49,3 +49,14 @@
    dated leads also use Date Created for All Leads.
 7. Each REVENUES row is a deal, including repeat addresses (unchanged).
 8. The 76% REVENUES→KPIs address match rate is normal.
+
+## Step 4 decisions (owner, 2026-10-18) — written into docs/PLAN.md §5/§5b and CLAUDE.md
+1. All Leads: every Lead row by **Date Created** (≥ start), any Quality incl. Pending. Net Leads: by Date
+   (Quality-change date). Note for Step 5: `clean_kpis` currently drops blank-Date rows, so Lead rows must be
+   kept with their Date Created.
+2. Leads per deal and cost per deal use the source's deals across all exits.
+3. Deal count comes from REVENUES; KPI Closed Deal is shown beside it and the gap flagged.
+4. Default lookback: last completed quarter.
+5. Guardrails as planned (< 30 leads or < 3 deals; 1.5× best quarter).
+6. P.%/A.% base: all revenue except Fix & Flip and Buy & Hold (as planned).
+7. Conversions default to same-period; cohort is the alternative view.

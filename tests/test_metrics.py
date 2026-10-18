@@ -84,14 +84,23 @@ def test_follow_up_rollup_reconciles(ds, q3_projection):
         ("main", "PPC A (unprojected)", "Novation Deal"): (UNPROJECTED, 4, 100000),
         ("main", FOLLOW_UP, "Wholesale"): (FOLLOW_UP_KIND, 1, 20000),
         ("main", FOLLOW_UP, "Retail Listing"): (FOLLOW_UP_KIND, 1, 8000),
-        # PPC A has no Fix & Flip row, so its F&F deals roll into that block's Follow Up
-        ("fix_flip", FOLLOW_UP, "Fix & Flip"): (FOLLOW_UP_KIND, 3, 65000),
+        # PPC A is on the projection, so its Fix & Flip deals get their own row, not Follow Up
+        ("fix_flip", "PPC A (unprojected)", "Fix & Flip"): (UNPROJECTED, 2, 35000),
+        ("fix_flip", FOLLOW_UP, "Fix & Flip"): (FOLLOW_UP_KIND, 1, 30000),
     }
-    assert lines[("fix_flip", FOLLOW_UP, "Fix & Flip")].contributors == {"PPC A": [2, 35000], "Inbound X": [1, 30000]}
+    assert lines[("fix_flip", FOLLOW_UP, "Fix & Flip")].contributors == {"Inbound X": [1, 30000]}
+    assert lines[("main", FOLLOW_UP, "Wholesale")].contributors == {"SELF GEN": [1, 20000]}
     assert sum(x.a_revenue for x in lines.values()) == 415000  # = all Q3 revenue
     assert sum(x.a_deals for x in lines.values()) == 24
     pa = lines[("main", "PPC A", "Wholesale")]
     assert pa.p_revenue == 180000 and pa.pva_revenue == 30000 and pa.a_avg == 15000
+
+
+def test_source_with_only_a_budget_line_is_not_follow_up(ds):
+    p = QuarterProjection(quarter_id="2026-Q3", marketing=[CostLine(source="SEO B", p_cost=3000)])
+    lines = {(x.block, x.label, x.exit): x for x in revenue_actuals(ds, p, Q3.months)}
+    assert lines[("main", "SEO B (unprojected)", "Wholesale")].a_revenue == 12000
+    assert "SEO B" not in lines[("main", FOLLOW_UP, "Wholesale")].contributors
 
 
 # ---------- the quarter view: cost lines, P.% / A.%, profit

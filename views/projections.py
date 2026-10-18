@@ -426,7 +426,7 @@ if edit:
 h.show(cost_rows_html())
 
 # ---------- B: revenue
-h.heading("Revenue", "B", "Follow Up = every source without its own row in that block this quarter.")
+h.heading("Revenue", "B", "Follow Up = deals from sources that aren't on this quarter's projection at all.")
 actual_rev = {(x.block, x.source, x.exit): x for x in view.revenue if x.kind != UNPROJECTED}
 for block in BLOCKS:
     subhead(BLOCK_LABELS[block])
@@ -493,7 +493,8 @@ if edit:
                   help="Fills empty or previously accepted lines. Typed values are never replaced.")
         with c2.expander("How The Suggested Revenue Is Worked Out", icon=":material/function:"):
             st.caption("P.Deals = deals in the window ÷ quarters in the window; P.Avg = window revenue ÷ window "
-                       "deals (losses and $0 rows included). Follow Up pools the sources without a line in that block.")
+                       "deals (losses and $0 rows included). Follow Up pools the sources that aren't on the "
+                       "projection.")
             for (blk, src, ex), s in sug.revenue.items():
                 pd_txt = f"{s.p_deals:.2f}" if s.p_deals is not None else "—"
                 avg_txt = md_money(s.p_avg) if s.p_avg is not None else "no deals"

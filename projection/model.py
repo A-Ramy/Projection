@@ -47,9 +47,10 @@ class QuarterProjection(BaseModel):
     lookback_to: str | None = None
     profit_target: float | None = None
 
-    def sources_in_block(self, block: str) -> set[str]:
-        """Named sources with a row in the block (Follow Up excluded)."""
-        return {r.source for r in self.revenue if r.block == block and r.source != FOLLOW_UP}
+    def projected_sources(self) -> set[str]:
+        """Sources on the projection: a marketing line or a revenue row in any block (Follow Up excluded).
+        Only deals from other sources roll into Follow Up."""
+        return {c.source for c in self.marketing} | {r.source for r in self.revenue if r.source != FOLLOW_UP}
 
     def target_deals(self, source: str) -> float:
         """Σ the source's P.Deals across all its revenue rows in all blocks."""

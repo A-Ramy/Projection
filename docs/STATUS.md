@@ -28,6 +28,10 @@
 | 13 | Final README + CLAUDE.md | Claude | Done | **Done** (2026-10-18) |
 
 ## Done so far
+- 2026-10-18 owner correction: Follow Up holds only sources that aren't on the quarter's projection at all; a
+  projected source closing under an exit it has no row for gets its own "(unprojected)" row. Logos added
+  (`assets/`). After a push that changes `.streamlit/config.toml` or engine modules, **reboot** the Streamlit
+  Cloud app (share.streamlit.io → app ⋮ → Reboot) so the running process picks them up.
 - Steps 8–10, 12, 13 built (2026-10-18): brand layer (`ui/brand.py`, `ui/brand.css`, `ui/html.py`; light + dark
   Streamlit themes in `.streamlit/config.toml`, sidebar toggle writes Streamlit's per-page theme key and reloads),
   Projections in the mockup layout (C/A/B/D3, Start From Suggestions, unprojected-spend prompts, Use Plan A/B,

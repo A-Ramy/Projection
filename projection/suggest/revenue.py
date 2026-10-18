@@ -1,8 +1,7 @@
 """D2: suggested P.Deals and P.Avg per revenue row, from the lookback window.
 
     P.Deals = deals in the window / quarters in the window;  P.Avg = window revenue / window deals
-A Follow Up row uses the pooled history of the sources that would roll into it: those with no row in
-that block of the projection.
+A Follow Up row uses the pooled history of the sources that would roll into it: those not on the projection.
 """
 
 from __future__ import annotations
@@ -47,7 +46,7 @@ def suggest_revenue(ds: Dataset, projection: QuarterProjection, months: list[Mon
     for line in projection.revenue:
         rows = r[(r["block"] == line.block) & (r["exit"] == line.exit)]
         if line.source == FOLLOW_UP:
-            rows = rows[~rows["source"].isin(projection.sources_in_block(line.block))]
+            rows = rows[~rows["source"].isin(projection.projected_sources())]
         else:
             rows = rows[rows["source"] == line.source]
         out.append(RevenueSuggestion(line.block, line.source, line.exit, len(rows), float(rows["revenue"].sum()),

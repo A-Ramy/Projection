@@ -35,8 +35,9 @@ sync when a rule changes.
 ## Revenue rules
 - Every REVENUES row is a deal (incl. $0 and negative rows). Revenue = sum.
 - Blocks: main (Novation Deal, Wholesale, Retail Listing), Fix & Flip, Buy & Hold.
-- **Follow Up** (per block): actuals = rows whose Source has no row in that block of the quarter's
-  projection. A projected source closing under an unprojected exit gets an auto "(unprojected)" row.
+- **Follow Up** (per block): actuals = rows whose Source is not on the quarter's projection at all (no marketing
+  line, no revenue row in any block). A projected source closing under an exit it has no row for gets an auto
+  "(unprojected)" row under that source, never Follow Up (owner correction, 2026-10-18).
 - P.% and A.% use one revenue base: total minus `pct_base_excluded_exits` (default Fix & Flip, Buy & Hold).
 
 ## Suggestions (key formulas)

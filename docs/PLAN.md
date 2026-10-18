@@ -127,7 +127,7 @@ All metrics are computed per month, then summed to the period. Ratios are recomp
 | Leads per deal (LPD) | All-LPD = All Leads / Deals; Net-LPD = Net Leads / Deals. Deals for the source cover all exit strategies (main + F&F + B&H). |
 | Suggested budget | target deals × LPD × CPL, which equals target deals × cost per deal (cost ÷ deals in the window). It is identical on an All or Net lead basis. The explanation shows both calculations, and the implied leads (all and net) = budget ÷ CPL. Target deals = Σ the source's P.Deals across all its revenue rows in all blocks. **Test:** $30,000 / $150 → 200 leads; 200 / 20 deals → LPD 10; 25 × 10 × 150 = **$37,500**. |
 | Reverse (override) | implied leads = budget / CPL; implied deals = implied leads / LPD. |
-| Follow Up (per block) | Actuals = REVENUES rows in that block whose Source has **no row in that block** of this quarter's projection, split by exit strategy. Drill-down lists the contributing sources. A projected source that closes a deal under an exit strategy it has no row for gets an auto "(unprojected)" actual-only row under that source, so totals reconcile. |
+| Follow Up (per block) | Actuals = REVENUES rows in that block whose Source is **not on this quarter's projection at all** (no marketing line and no revenue row in any block; owner correction 2026-10-18), split by exit strategy. Drill-down lists the contributing sources. A projected source that closes a deal under an exit strategy it has no row for gets an auto "(unprojected)" actual-only row under that source, so totals reconcile. |
 | Other marketing (unprojected) | Σ actual cost of marketing-classified names not selected this quarter. |
 | P.% / A.% | P.Cost / projected revenue base; A.Cost / actual revenue base, where an in-progress quarter uses revenue from the same cost-complete months as the costs. The base is total revenue minus excluded exits (default: F&F and B&H). PVA.Cost = P − A; PVA.% = P.% − A.%. Green when ≥ 0 (under budget), red when < 0. |
 | Profit / margin | Revenue (all blocks) − total cost; margin = profit / total revenue. |
@@ -172,7 +172,7 @@ Nothing is hard-coded. Sources, cost categories, exit strategies, KPI types and 
 | New name appears in… | What happens automatically |
 |---|---|
 | COSTS (new source) | Treated as **marketing** unless it is on the non-marketing list in Settings. Its spend shows on **Other marketing (unprojected)** with a breakdown, so totals still reconcile. It appears in the "add source" picker and is flagged "New name detected" on the Data Quality page and in a banner, together with the near-duplicate spelling check. A new *non-marketing* line, e.g. a new payroll category, shows as marketing until you tick it as non-marketing in Settings. The banner prompts you. |
-| REVENUES (new source) | Rolls into **Follow Up** for any quarter that doesn't give it its own row, and is listed in the Follow Up drill-down. |
+| REVENUES (new source) | Rolls into **Follow Up** for any quarter whose projection doesn't include it, and is listed in the Follow Up drill-down. |
 | KPIs (new source) | Counted in PTA and the Funnel right away, and added to the source filters. |
 | New exit strategy | Gets its own Source × Exit rows in actuals and is flagged. |
 | New KPI type | Counted in PTA and flagged. It joins the funnel once added to `FUNNEL_STAGES` (one-line change). |

@@ -1,9 +1,9 @@
 """Revenue actuals laid onto a quarter projection's rows, with the Follow Up roll-up per block.
 
 For each REVENUES row in the period (block = its exit strategy's block):
-  - its Source has no row in that block of the projection  -> the block's Follow Up row for that exit
-  - its Source × Exit has a projected row                  -> that row
-  - its Source is projected in the block, but not this exit -> an auto "(unprojected)" actual-only row
+  - its Source isn't on the projection at all               -> that block's Follow Up row for the exit
+  - its Source × Exit has a projected row                   -> that row
+  - its Source is projected, but has no row for this exit   -> an auto "(unprojected)" row under that source
 So the lines always add up to all revenue in the period.
 """
 
@@ -63,11 +63,11 @@ def revenue_actuals(ds: Dataset, projection: QuarterProjection, months: Iterable
         line = lines.setdefault((r.block, r.source, r.exit), RevenueActual(r.block, r.source, r.exit, kind))
         line.p_deals += r.p_deals
         line.p_revenue += r.p_revenue
-    named = {b: projection.sources_in_block(b) for b in BLOCKS}
+    named = projection.projected_sources()
 
     for row in in_months(ds.revenues, months).itertuples():
         block = block_of(row.exit)
-        if row.source not in named[block]:
+        if row.source not in named:
             key, kind = (block, FOLLOW_UP, row.exit), FOLLOW_UP_KIND
         else:
             key = (block, row.source, row.exit)

@@ -17,6 +17,7 @@ s = get_settings()
 ds = get_dataset()
 cost_names = sorted(set(ds.costs["source"])) if ds is not None else []
 names = sorted(set(cost_names) | set(s["non_marketing"]))
+rev_names = sorted((set(ds.revenues["source"]) - {""} if ds is not None else set()) | set(s["own_no_cost_sources"]))
 
 with st.form("settings"), st.container(key="card-settings"):
     start = st.date_input("Start Date", value=date.fromisoformat(s["start_date"]), format="YYYY-MM-DD",
@@ -27,6 +28,9 @@ with st.form("settings"), st.container(key="card-settings"):
                          help="Every other COSTS name is a marketing source. New names default to marketing.")
     payroll = st.multiselect("Of Which Payroll", names, default=[p for p in s["payroll"] if p in names],
                              help="Grouped as Payroll on the Projections tab.")
+    own = st.multiselect("No-Cost Sources Projected On Their Own", rev_names, default=s["own_no_cost_sources"],
+                         help="Projected next to the marketing sources by revenue or deals. Every other no-cost "
+                              "source is projected as part of Follow Up.")
     lb = st.selectbox("Default Suggestion Window", list(LOOKBACKS), index=list(LOOKBACKS).index(s["lookback_default"]),
                       format_func=LOOKBACKS.get, help="New quarters start with this; each quarter can change it.")
     c = st.columns(3)
@@ -46,7 +50,7 @@ if saved:
     except Exception:
         who = ""
     new = {"start_date": start.isoformat(), "pct_base_excluded_exits": excl, "non_marketing": non,
-           "payroll": payroll, "lookback_default": lb, "low_conf_min_leads": int(min_leads),
+           "payroll": payroll, "own_no_cost_sources": own, "lookback_default": lb, "low_conf_min_leads": int(min_leads),
            "low_conf_min_deals": int(min_deals), "scale_cap": float(cap), "cohort_immature_months": int(immature),
            "cache_ttl_minutes": int(ttl)}
     store = get_store()

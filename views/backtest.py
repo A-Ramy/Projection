@@ -26,8 +26,11 @@ if not done:
     st.stop()
 
 c = st.columns([1.6, 2.4, 3], vertical_alignment="bottom")
-target = c[0].selectbox("Quarter", done, format_func=lambda p: p.label)
-lookback = c[1].selectbox("Learn From", [k for k in LOOKBACKS if k != "custom"], index=1, format_func=LOOKBACKS.get)
+by_key = {p.key: p for p in done}
+target = by_key[c[0].segmented_control("Quarter", list(by_key), default=done[0].key, key="bt_quarter",
+                                       format_func=lambda k: by_key[k].label) or done[0].key]
+lookback = c[1].segmented_control("Learn From", [k for k in LOOKBACKS if k != "custom"], default="last_2_quarters",
+                                  format_func=LOOKBACKS.get, key="bt_lookback") or "last_2_quarters"
 basis = c[2].segmented_control("Budget Test", ["pred", "act"], default="pred",
                                format_func=lambda b: "Using Predicted Deals" if b == "pred"
                                else "Using The Quarter's Actual Deals") or "pred"

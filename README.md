@@ -10,11 +10,11 @@ redeploys it.
 
 ## What's in it
 
-- **Projections**: pick a quarter; C profit summary (projected, actual or pacing, end-of-quarter forecast, cost %),
-  A costs (marketing with suggested budgets, payroll and other costs), B revenue (Revenue, Fix & Flip, Buy & Hold
-  blocks with Follow Up), D3 profit target (Plan A most-efficient-first, Plan B keep-the-mix). **Start From
-  Suggestions** fills an empty quarter; **Accept** / **Accept All** never replace typed values (🟠 = override).
-  Whole-quarter or single-month view. Every save is a revision you can reopen.
+- **Projections**: a quarter starts pre-filled with the backbone (last quarter's actuals, or a longer window).
+  1 Sources: type spend, revenue or deals per source and the rest is worked out; SELF GEN / Referral and the
+  Follow Up group are projected by revenue or deals. 2 Deals by exit strategy. 3 Non-marketing costs. 4 Totals vs
+  backbone and actual (vs pace while the quarter runs). Optional "Work Back From A Profit Target". Save at the start
+  of the quarter; every version is kept.
 - **PTA**: ACQ / FUS leaderboard with ▲▼ vs the previous period, trend per rep, KPI counts by type; period or
   cohort lead→deal.
 - **Funnel**: lead lifecycle with leaks, cost vs profit per stage, all stages, conversion matrix; period or cohort;

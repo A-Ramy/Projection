@@ -1,5 +1,6 @@
-"""Projections: one quarter's costs and revenue, projected vs actual, with suggestions; saved as revisions in the app
-database (never in the sheet). Layout follows the approved mockup: C profit summary, A costs, B revenue, D3 target."""
+"""Projections: build a quarter on its backbone (the quarter before, by default). Every source starts at the
+backbone's actuals; type spend, revenue or deals per source and the rest is worked out; place the deals on exit
+rows; non-marketing costs are typed. Saved as revisions in the app database (never in the sheet)."""
 
 from __future__ import annotations
 
@@ -7,57 +8,48 @@ import pandas as pd
 import streamlit as st
 
 from projection.data.schema import KNOWN_EXITS, block_of
-from projection.metrics.core import cost_complete_months, marketing_names
+from projection.metrics.core import in_months, marketing_names
 from projection.metrics.follow_up import UNPROJECTED
 from projection.metrics.pacing import cost_pace, daily_pace
-from projection.metrics.quarter import OTHER_MARKETING, QuarterView, quarter_view
-from projection.model import BLOCKS, FOLLOW_UP, QuarterProjection
-from projection.periods import Month, Period, period_of
+from projection.metrics.quarter import QuarterView, quarter_view
+from projection.model import FOLLOW_UP, QuarterProjection
+from projection.periods import Month, Period, elapsed_days, period_of
+from projection.plan import (
+    FOLLOW_UP_KIND,
+    NO_COST,
+    backbone,
+    prefill,
+    set_driver,
+    source_rows,
+    split_by_mix,
+    sync_costs,
+    totals,
+    use_plan,
+)
 from projection.planning import (
     BLOCK_LABELS,
-    add_actual_lines,
     add_revenue_line,
     add_source,
-    apply_plan,
-    copy_lines,
-    follow_up_sources,
-    lines_from_history,
-    monthly_costs,
-    monthly_revenue,
     new_projection,
-    previous_quarter,
     quarter_options,
     reconcile,
     scale_projection,
-    unprojected_spend,
 )
-from projection.suggest.lookback import LOOKBACKS
-from projection.suggest.marketing import reverse
 from projection.suggest.profit_target import fixed_parts, needed_contribution, plan_a, plan_b, source_economics
-from projection.suggest.quarter import (
-    accept_budget,
-    accept_revenue,
-    budget_drift,
-    fill_suggestions,
-    mark_typed,
-    quarter_suggestions,
-)
 from ui import html as h
 from ui.state import get_dataset, get_settings, get_store
 
 MONEY = st.column_config.NumberColumn(format="dollar")
 COUNT = st.column_config.NumberColumn(format="%.2f")
-ORIGIN = {"manual": "", "accepted_suggestion": "✓ Suggested", "override": "🟠 Override"}
 NAN = float("nan")
+SET_BY = {"spend": "Spend", "revenue": "Revenue", "deals": "Deals", "exits": "Exit Rows"}
+KIND = {"marketing": "Marketing", NO_COST: "No Cost", FOLLOW_UP_KIND: "Follow Up"}
+BACKBONES = {"last_quarter": "Last Quarter", "last_2_quarters": "Last 2 Quarters", "all": "All Since Start",
+             "custom": "Custom"}
 
 
 def num(x: float | None) -> float:
     return NAN if x is None else x
-
-
-def md_money(x: float, decimals: int = 2) -> str:
-    """Dollar amount for markdown text (a bare $ starts math formatting)."""
-    return h.money(x, decimals).replace("$", "\\$")
 
 
 ds = get_dataset()
@@ -93,46 +85,69 @@ def put(p: QuarterProjection) -> None:
     state["ver"][p.quarter_id] = state["ver"].get(p.quarter_id, 0) + 1  # fresh editors after every change
 
 
-def apply_edits(qid: str, key: str, group: str, indices: list[int], fields: dict[str, str],
-                suggestions: dict[int, object] | None = None) -> None:
-    """data_editor on_change: copy edited cells onto the draft's lines, apply ticked Accept, drop ticked Remove."""
+def is_empty(p: QuarterProjection) -> bool:
+    return not p.marketing and not p.revenue and not p.drivers
+
+
+def edit_sources(qid: str, key: str, names: list[str]) -> None:
+    """Sources table: the last of Spend / Revenue / Deals you typed becomes that source's driver."""
     p = draft(qid)
-    lines = getattr(p, group)
+    bb = backbone(ds, p, by_key[qid])
     drop = set()
     for row, changes in st.session_state[key]["edited_rows"].items():
-        i = indices[int(row)]
-        line = lines[i]
-        for col, value in changes.items():
-            if col == "Remove" and value:
-                drop.add(i)
-            elif col in fields:
-                setattr(line, fields[col], float(value or 0))
-                mark_typed(line)
-        if changes.get("Accept") and suggestions and suggestions.get(i) is not None:
-            (accept_revenue if group == "revenue" else accept_budget)(line, suggestions[i])
-    setattr(p, group, [x for i, x in enumerate(lines) if i not in drop])
+        src = names[int(row)]
+        if changes.get("Remove"):
+            drop.add(src)
+            continue
+        for col, kind in (("Spend", "spend"), ("Revenue", "revenue"), ("Deals", "deals")):
+            if col in changes and changes[col] is not None:
+                if kind == "spend" and src == FOLLOW_UP:
+                    continue  # Follow Up has no spend: project it by revenue or deals
+                set_driver(p, src, kind, changes[col], bb, settings)
+        if changes.get("Use Exit Rows"):
+            set_driver(p, src, "exits", 0, bb, settings)
+    if drop:
+        p.marketing = [c for c in p.marketing if c.source not in drop]
+        p.revenue = [r for r in p.revenue if r.source not in drop]
+        p.drivers = {k: v for k, v in p.drivers.items() if k not in drop}
     put(p)
 
 
-def fill(qid: str, group: str) -> None:
+def edit_exits(qid: str, key: str) -> None:
     p = draft(qid)
-    fill_suggestions(p, quarter_suggestions(ds, p, by_key[qid], settings), group)
+    drop = set()
+    for row, changes in st.session_state[key]["edited_rows"].items():
+        line = p.revenue[int(row)]
+        if changes.get("Remove"):
+            drop.add(int(row))
+            continue
+        if "P.Avg" in changes:
+            line.p_avg = float(changes["P.Avg"] or 0)
+        if "P.Deals" in changes:
+            line.p_deals = float(changes["P.Deals"] or 0)
+        if "P.Revenue" in changes and line.p_avg:
+            line.p_deals = round(float(changes["P.Revenue"] or 0) / line.p_avg, 2)
+    p.revenue = [r for i, r in enumerate(p.revenue) if i not in drop]
+    sync_costs(p, backbone(ds, p, by_key[qid]), settings)
     put(p)
 
 
-def start_from_suggestions(qid: str) -> None:
-    """Lines from the suggestion window, then revenue suggestions, then budgets (which follow the deals)."""
+def edit_costs(qid: str, key: str) -> None:
     p = draft(qid)
-    period = by_key[qid]
-    p = lines_from_history(p, ds, quarter_suggestions(ds, p, period, settings).months, settings)
-    fill_suggestions(p, quarter_suggestions(ds, p, period, settings), "revenue")
-    fill_suggestions(p, quarter_suggestions(ds, p, period, settings), "marketing")
+    for row, changes in st.session_state[key]["edited_rows"].items():
+        if "P.Cost" in changes:
+            p.non_marketing[int(row)].p_cost = float(changes["P.Cost"] or 0)
     put(p)
 
 
-def set_field(qid: str, key: str, field: str) -> None:
+def set_field(qid: str, key: str, field: str, mapper=None) -> None:
     p = draft(qid)
-    setattr(p, field, st.session_state[key])
+    value = st.session_state[key]
+    if value is None:
+        return
+    setattr(p, field, mapper(value) if mapper else value)
+    if field.startswith("lookback"):
+        sync_costs(p, backbone(ds, p, by_key[qid]), settings)
     put(p)
 
 
@@ -143,59 +158,77 @@ def user() -> str:
         return ""
 
 
-def flag_text(s, drift: float | None = None) -> str:
-    if s is None:
-        return ""
-    notes = []
-    f = getattr(s, "flags", None)
-    if f is not None:
-        notes += [n for n, on in (("⛔ Insufficient Data", f.insufficient), ("⚠️ Low Confidence", f.low_confidence),
-                                  ("📈 Over Scale Cap", f.scale)) if on]
-    if drift is not None:
-        notes.append(f"🔄 Now ${drift:,.0f}")
-    return " · ".join(notes)
-
-
 def quarter_label(k: str) -> str:
     tag = " · Live" if k == current else (" · Done" if by_key[k].end < ds.today else " · Next")
-    return by_key[k].label + tag
+    return by_key[k].label.replace(" 20", " '") + tag
 
 
-def subhead(text: str) -> None:
-    st.html(f'<div class="side-h" style="font-size:14px;color:var(--heading)">{h.esc(text)}</div>')
-
-
-# ---------- header and controls
+# ---------- header: click-only controls
 st.title("Projections")
-bar = st.columns([2.2, 3.2, 3.4], vertical_alignment="bottom")
 keys = list(by_key)
-qid = bar[0].selectbox("Quarter", keys, index=keys.index(current) if current in keys else len(keys) - 1,
-                       format_func=quarter_label)
+qid = st.segmented_control("Quarter", keys, default=current if current in keys else keys[-1], key="proj_quarter",
+                           format_func=quarter_label) or current
 period = by_key[qid]
 proj = draft(qid)
 ver = state["ver"][qid]
-show_opts = ["quarter"] + [m.key for m in period.months]
-show = bar[1].segmented_control("Show", show_opts, default="quarter", key=f"show_{qid}",
-                                format_func=lambda k: "Whole Quarter" if k == "quarter"
-                                else Month.from_key(k).label[:3])
-show = show or "quarter"
+c = st.columns([3.2, 3.6], vertical_alignment="bottom")
 lb_key = f"lookback_{qid}_{ver}"
-bar[2].selectbox("Suggestions Based On", list(LOOKBACKS), index=list(LOOKBACKS).index(proj.lookback),
-                 format_func=LOOKBACKS.get, key=lb_key, on_change=set_field, args=(qid, lb_key, "lookback"))
-if proj.lookback == "custom":
-    before = [m.key for m in cost_complete_months(ds) if m.last_day < period.start]
-    if before:
-        cc = st.columns([2.2, 3.2, 1.7, 1.7])
-        for col, field, label, default in ((cc[2], "lookback_from", "From", before[0]),
-                                           (cc[3], "lookback_to", "To", before[-1])):
-            k = f"{field}_{qid}_{ver}"
-            value = getattr(proj, field) if getattr(proj, field) in before else default
-            col.selectbox(label, before, index=before.index(value), key=k,
-                          format_func=lambda x: Month.from_key(x).label, on_change=set_field, args=(qid, k, field))
-        if not (proj.lookback_from and proj.lookback_to):
-            proj.lookback_from, proj.lookback_to = before[0], before[-1]
-            put(proj)
-            st.rerun()
+c[0].segmented_control("Backbone (Actuals The Projection Is Built On)", list(BACKBONES), default=proj.lookback,
+                       format_func=BACKBONES.get, key=lb_key, on_change=set_field, args=(qid, lb_key, "lookback"))
+show = c[1].segmented_control("Show", ["quarter"] + [m.key for m in period.months], default="quarter",
+                              key=f"show_{qid}", format_func=lambda k: "Whole Quarter" if k == "quarter"
+                              else Month.from_key(k).label[:3]) or "quarter"
+before = [m for m in backbone(ds, proj, period).longer]
+if proj.lookback == "custom" and before:
+    rk = f"range_{qid}_{ver}"
+    lo = Month.from_key(proj.lookback_from) if proj.lookback_from else before[0]
+    hi = Month.from_key(proj.lookback_to) if proj.lookback_to else before[-1]
+    lo, hi = (lo if lo in before else before[0]), (hi if hi in before else before[-1])
+    st.select_slider("Backbone Months", options=before, value=(lo, hi), format_func=lambda m: m.label, key=rk,
+                     on_change=lambda: (set_field(qid, rk, "lookback_from", lambda v: v[0].key),
+                                        set_field(qid, rk, "lookback_to", lambda v: v[1].key)))
+    if not (proj.lookback_from and proj.lookback_to):
+        proj.lookback_from, proj.lookback_to = lo.key, hi.key
+        put(proj)
+        st.rerun()
+
+bb = backbone(ds, proj, period)
+if is_empty(proj) and bb.months and store.latest_revision(qid) is None:
+    proj = prefill(ds, period, settings, proj)  # a new quarter starts as the backbone repeated
+    put(proj)
+    st.rerun()
+
+rev_id = state["rev"].get(qid)
+saved = store.get_revision(rev_id) if rev_id else None
+saved_txt = (f"Saved version #{rev_id}, {saved['saved_at']:%b %-d, %-I:%M %p}"
+             + (f" by {h.esc(saved['saved_by'])}" if saved["saved_by"] else "")) if saved else "Not saved yet"
+dirty = " · <b>Unsaved changes</b>" if state["dirty"].get(qid) else ""
+when = ("Complete: actuals are final." if period.end < ds.today else
+        f"In progress: revenue to {ds.today:%b %-d}, costs post at month end." if period.start <= ds.today else
+        "Future quarter.")
+h.status(f"{when} · Backbone: <b>{bb.label}</b> actuals{' per quarter' if bb.quarters > 1 else ''} · "
+         f"{saved_txt}{dirty}")
+if not bb.months:
+    h.box("No complete months before this quarter, so there's no backbone: type every number yourself.", "warn")
+elif not saved:
+    h.box(f"Pre-filled with the {bb.label} actuals. Change what you plan to do differently, then <b>Save</b> "
+          "(save at the start of the quarter; every version is kept).", "info")
+
+# ---------- actions
+a = st.columns([1.1, 1.1, 1.8, 3.4], vertical_alignment="bottom")
+note = a[3].text_input("Note", placeholder="What changed (optional)", label_visibility="collapsed")
+if a[0].button("Save", type="primary", icon=":material/save:", disabled=not state["dirty"].get(qid), width="stretch"):
+    new_id = store.save_revision(qid, proj.model_dump(), by=user(), note=note)
+    load(qid, store.get_revision(new_id))
+    st.toast(f"Saved version #{new_id}", icon=":material/check:")
+    st.rerun()
+if a[1].button("Discard", icon=":material/undo:", disabled=not state["dirty"].get(qid), width="stretch"):
+    load(qid)
+    st.rerun()
+if a[2].button("Reset To Backbone", icon=":material/restart_alt:", width="stretch", disabled=not bb.months,
+               help=f"Start again from the {bb.label} actuals (your typed numbers are cleared until you save)."):
+    put(prefill(ds, period, settings, proj))
+    st.rerun()
 
 edit = show == "quarter"
 if edit:
@@ -204,382 +237,287 @@ else:
     m = Month.from_key(show)
     shown, shown_proj = Period("month", m.key, m.label, (m,)), scale_projection(proj, 1 / 3)
 view: QuarterView = quarter_view(ds, shown_proj, shown, settings)
-sug = quarter_suggestions(ds, proj, period, settings)
+rows = source_rows(proj, bb, settings)
+tot = totals(proj, rows)
+scale = 1 if edit else 1 / 3
+b_c, b_r = in_months(ds.costs, bb.months), in_months(ds.revenues, bb.months)
+q = bb.quarters or 1
+backbone_tot = {"revenue": float(b_r["revenue"].sum()) / q, "cost": float(b_c["cost"].sum()) / q,
+                "deals": len(b_r) / q}
+backbone_tot["profit"] = backbone_tot["revenue"] - backbone_tot["cost"]
 
-rev_id = state["rev"].get(qid)
-saved = store.get_revision(rev_id) if rev_id else None
-saved_txt = (f"Revision #{rev_id} saved {saved['saved_at']:%b %-d, %-I:%M %p}"
-             + (f" by {h.esc(saved['saved_by'])}" if saved["saved_by"] else "")) if saved else "Not saved yet"
-dirty = " · <b>Unsaved changes</b>" if state["dirty"].get(qid) else ""
-when = ("Complete: all actuals are final." if period.end < ds.today else
-        f"Revenue and KPIs through {ds.today:%b %-d}. Costs: {view.costs_label}." if period.start <= ds.today else
-        "Future quarter.")
-h.status(f"{when} · Suggestions learn from <b>{sug.window}</b> · % columns divide by revenue excl. "
-         f"{', '.join(settings.get('pct_base_excluded_exits', []))} · {saved_txt}{dirty}")
-if not edit:
-    h.box("Monthly view: projections are the quarter ÷ 3. Switch to <b>Whole Quarter</b> to edit.", "info")
-if not sug.months:
-    h.box("No complete months with costs before this quarter, so every suggestion here shows "
-          "<b>Insufficient Data</b>. That's expected for the first quarter after the start date.", "warn")
-
-# ---------- prompts: an empty quarter, spend on sources that aren't projected
-if edit and sug.months and not proj.marketing and not proj.revenue:
-    with st.container(key="card-start"):
-        st.html(f'<div class="sh"><span class="sec">Start</span><span class="t1">Start This Quarter</span>'
-                f"<small>Nothing projected yet for {period.label}.</small></div>"
-                f'<p class="status">Adds every marketing source with spend in {sug.window}, the exit strategies they '
-                "closed under (and Follow Up for the rest), then fills in the suggested deals, deal sizes and "
-                "budgets. You can change or remove anything afterwards.</p>")
-        c = st.columns([2, 1.5, 3.5])
-        c[0].button("Start From Suggestions", type="primary", icon=":material/auto_awesome:",
-                    key=f"start_{qid}_{ver}", on_click=start_from_suggestions, args=(qid,))
-        prev_rev = store.latest_revision(previous_quarter(qid))
-        if c[1].button(f"Copy {previous_quarter(qid).replace('-', ' ')}", icon=":material/content_copy:",
-                       disabled=prev_rev is None, key=f"copy0_{qid}_{ver}"):
-            put(copy_lines(QuarterProjection.model_validate(prev_rev["payload"]), qid))
-            st.rerun()
-if edit and sug.months and (proj.marketing or proj.revenue):
-    fresh = unprojected_spend(proj, ds, sug.months, settings)
-    if fresh:
-        h.box("<b>Spend found for sources you haven't projected:</b> "
-              + " · ".join(f"{h.esc(s)} ({h.money(v)} in {sug.window})" for s, v in fresh.items())
-              + ". It shows on “Other Marketing (Unprojected)” until you add them.", "info")
-        with st.container(horizontal=True):
-            for s in fresh:
-                if st.button(f"Add {s}", icon=":material/add:", key=f"addfresh_{s}_{qid}_{ver}"):
-                    put(add_source(proj, s))
-                    st.rerun()
-
-# ---------- actions
-if edit:
-    a = st.columns([1.1, 1.1, 1.5, 2, 2.6], vertical_alignment="bottom")
-    note = a[4].text_input("Note", placeholder="What changed (optional)", label_visibility="collapsed")
-    if a[0].button("Save", type="primary", icon=":material/save:", disabled=not state["dirty"].get(qid),
-                   width="stretch"):
-        new_id = store.save_revision(qid, proj.model_dump(), by=user(), note=note)
-        load(qid, store.get_revision(new_id))
-        st.toast(f"Saved revision #{new_id}", icon=":material/check:")
-        st.rerun()
-    if a[1].button("Discard", icon=":material/undo:", disabled=not state["dirty"].get(qid), width="stretch"):
-        load(qid)
-        st.rerun()
-    prev_id = previous_quarter(qid)
-    prev = store.latest_revision(prev_id)
-    if a[2].button(f"Copy {prev_id.replace('-', ' ')}", icon=":material/content_copy:", disabled=prev is None,
-                   width="stretch", help="Start from the previous quarter's saved lines and values."):
-        put(copy_lines(QuarterProjection.model_validate(prev["payload"]), qid))
-        st.rerun()
-    if a[3].button("Add Lines For Actuals", icon=":material/playlist_add:", width="stretch",
-                   help="Add a line for every source with spend or deals this quarter (projected values stay 0)."):
-        put(add_actual_lines(proj, ds, period, settings))
-        st.rerun()
-
-# ---------- C: profit summary
-h.heading("Profit Summary", "C", shown.label)
-p_cost, p_rev = view.p_cost, view.p_revenue
+# ---------- summary
 in_progress = shown.start <= ds.today <= shown.end
-tiles = [("Projected", h.money(view.p_profit),
-          f"Revenue {h.money(p_rev)} − cost {h.money(p_cost)}<br>Margin {h.pct(view.p_margin)}")]
+p_rev, p_cost, p_profit = tot["revenue"] * scale, tot["cost"] * scale, tot["profit"] * scale
+tiles = [("Projected Profit", h.money(p_profit), f"Revenue {h.money(p_rev)} − cost {h.money(p_cost)}<br>Margin "
+          f"{h.pct(p_profit / p_rev if p_rev else None)} · {h.num(tot['deals'] * scale)} deals"),
+         (f"Backbone · {bb.label}", h.money(backbone_tot["profit"] * scale),
+          f"Revenue {h.money(backbone_tot['revenue'] * scale)} − cost {h.money(backbone_tot['cost'] * scale)}"
+          f"<br>{h.num(backbone_tot['deals'] * scale)} deals{' (per quarter)' if bb.quarters > 1 else ''}")]
 if in_progress:
     rp = daily_pace(shown, ds.today, p_rev, view.a_revenue)
     cp = cost_pace(shown, view.cost_months, p_cost, view.a_cost)
     share = min(100, view.a_revenue / p_rev * 100) if p_rev else 0
     mark = rp.expected_to_date / p_rev * 100 if p_rev else 0
-    tiles.append((f"Revenue Pacing · {rp.basis}", h.money(view.a_revenue),
+    tiles.append((f"Revenue So Far · {rp.basis}", h.money(view.a_revenue),
                   f"Expected by today {h.money(rp.expected_to_date)} ({h.pct(rp.pace_ratio)} of pace)"
                   f'<div class="meter"><i style="width:{share:.1f}%"></i><b style="left:{mark:.1f}%"></b></div>'))
-    tiles.append(("Cost Pacing", h.money(view.a_cost) if view.cost_months else "No completed month yet",
-                  f"{cp.basis}. Forecast {h.money(cp.forecast)}.", "" if view.cost_months else "muted"))
     tiles.append(("End-Of-Quarter Forecast", h.money(rp.forecast - cp.forecast),
-                  f"Revenue at the current run rate {h.money(rp.forecast)} − cost {h.money(cp.forecast)}"
-                  f"<br>vs projected profit {h.money(view.p_profit)}"))
+                  f"Revenue at the current pace {h.money(rp.forecast)} − cost {h.money(cp.forecast)} ({cp.basis})"))
 else:
-    tiles.append(("Actual", h.money(view.a_profit) if view.cost_months else "—",
-                  f"Revenue {h.money(view.a_revenue_cost_months)} − cost {h.money(view.a_cost)}"
-                  f"<br>Margin {h.pct(view.a_margin)} · {view.costs_label}"))
-    gap = view.a_profit - view.p_profit
-    tiles.append(("Projected Vs Actual", ("▲ " if gap >= 0 else "▼ ") + h.money(gap) if view.cost_months else "—",
-                  f"Revenue {h.money(view.a_revenue - p_rev)} vs projection · cost "
-                  f"{h.money(abs(p_cost - view.a_cost))} {'under' if p_cost >= view.a_cost else 'over'} budget",
+    gap = view.a_profit - p_profit
+    tiles.append(("Actual Profit", h.money(view.a_profit) if view.cost_months else "—",
+                  f"Revenue {h.money(view.a_revenue_cost_months)} − cost {h.money(view.a_cost)} · {view.costs_label}",
+                  "" if view.cost_months else "muted"))
+    tiles.append(("Actual Vs Projected", ("▲ " if gap >= 0 else "▼ ") + h.money(gap) if view.cost_months else "—",
+                  f"Revenue {h.money(view.a_revenue - p_rev)} · cost {h.money(view.a_cost - p_cost)}",
                   ("up" if gap >= 0 else "down") if view.cost_months else "muted"))
-tiles.append(("Cost %", h.pct(view.a_pct), f"Projected {h.pct(view.p_pct)} of revenue excl. "
-              + ", ".join(settings.get("pct_base_excluded_exits", []))))
 h.tiles(tiles)
-rec = reconcile(ds, view)
-if rec.ok:
-    h.status(f"✓ Lines add up to the sheet: costs {h.money(rec.sheet_cost, 2)} ({view.costs_label}), revenue "
-             f"{h.money(rec.sheet_revenue, 2)} from {rec.sheet_deals} deals.")
-else:
-    h.box(f"Lines don't add up to the sheet: costs {h.money(rec.lines_cost, 2)} vs {h.money(rec.sheet_cost, 2)}, "
-          f"revenue {h.money(rec.lines_revenue, 2)} vs {h.money(rec.sheet_revenue, 2)}, deals {rec.lines_deals} vs "
-          f"{rec.sheet_deals}.", "bad")
 
 
-# ---------- A: costs
-def cost_rows_html() -> str:
-    """Read-only cost table: every line, then subtotals, as in the sheet."""
-    has = bool(view.cost_months)
-
-    def cells(label: str, p: float, a: float) -> list[str]:
-        pp = p / view.p_base if view.p_base else None
-        ap = a / view.a_base if view.a_base and has else None
-        return [label, h.money(p), h.pct(pp), h.money(a) if has else '<span class="muted">not posted</span>',
-                h.pct(ap), h.signed_cell(p - a if has else None),
-                h.signed_cell(None if pp is None or ap is None else pp - ap, h.pct)]
-
-    rows, classes = [], []
-    groups = [("Marketing", [c for c in view.costs if c.kind != "non_marketing"]),
-              ("Payroll", [c for c in view.costs if c.kind == "non_marketing" and c.source in payroll]),
-              ("Other Costs", [c for c in view.costs if c.kind == "non_marketing" and c.source not in payroll])]
-    for name, lines in groups:
-        if not lines:
-            continue
-        rows.append(['<td colspan="7">' + name + "</td>"])
-        classes.append("grp")
-        for c in lines:
-            label = h.esc(c.source) + (" " + h.pill("unprojected", "ins") if c.kind == OTHER_MARKETING else "")
-            rows.append(cells(label, c.p_cost, c.a_cost))
-            classes.append("")
-        rows.append(cells(f"{name} Subtotal", sum(c.p_cost for c in lines), sum(c.a_cost for c in lines)))
-        classes.append("sub")
-    rows.append(cells("Total", view.p_cost, view.a_cost))
-    classes.append("tot")
-    return h.table(["Source", "P.Cost", "P.%", "A.Cost", "A.%", "PVA.Cost", "PVA.%"], rows, lambda n: classes[n])
+# ---------- 1: sources
+def actual_of(src: str) -> tuple[float, int, float]:
+    spend = next((c.a_cost for c in view.costs if c.source == src), 0.0)
+    lines = [x for x in view.revenue if x.source == src]
+    return spend, sum(x.a_deals for x in lines), sum(x.a_revenue for x in lines)
 
 
-def cost_editor(group: str, title: str) -> None:
-    lines = getattr(proj, group)
-    actual = {c.source: c for c in view.costs}
-    marketing = group == "marketing"
-    suggestions = {i: sug.budgets.get(c.source) for i, c in enumerate(lines)} if marketing else {}
-    rows = []
-    for i, c in enumerate(lines):
-        x = actual[c.source]
-        row = {"Remove": False, "Source": c.source, "P.Cost": c.p_cost}
-        if marketing:
-            s = suggestions[i]
-            r = reverse(c.p_cost, s.cost, s.leads, s.deals, s.net_leads) if s and c.p_cost else None
-            row |= {"Suggested": num(s.budget if s else None), "Accept": False,
-                    "Implied Leads": num(r.implied_leads if r else None),
-                    "Implied Deals": num(r.implied_deals if r else None),
-                    "Notes": flag_text(s, budget_drift(c, s))}
-        row |= {"A.Cost": x.a_cost, "Origin": ORIGIN[c.origin]}
-        rows.append(row)
-    subhead(title)
-    if not rows:
-        st.caption("No lines yet. Use Start From Suggestions above, or Add Source below.")
-        return
-    key = f"cost_{group}_{qid}_{ver}"
+h.heading("Sources", "1", "Type the Spend, the Revenue or the Deals for a source; the other two are worked out from "
+          "its backbone cost per deal and avg deal. No-cost sources and Follow Up: type revenue or deals.")
+names = [r.source for r in rows]
+table = []
+for r in rows:
+    a_spend, a_deals, a_rev = actual_of(r.source)
+    u = r.unit
+    table.append({
+        "Source": r.source,
+        "Spend": num(None if r.kind == FOLLOW_UP_KIND else (r.spend * scale if r.spend is not None else None)),
+        "Revenue": num(r.revenue * scale if r.revenue is not None else None),
+        "Deals": num(r.deals * scale if r.deals is not None else None),
+        "Set By": SET_BY[r.driver.kind],
+        "Not Placed": num(None if r.unallocated is None else round(r.unallocated * scale, 2) + 0.0),
+        "Backbone Spend": u.cost * scale, "Backbone Deals": u.deals * scale, "Backbone Revenue": u.revenue * scale,
+        "Cost / Deal": num(u.cpd), "Avg Deal": num(u.avg),
+        "Actual Spend": a_spend, "Actual Deals": a_deals, "Actual Revenue": a_rev,
+        "Type": KIND[r.kind], "Notes": " · ".join(r.notes), "Use Exit Rows": False, "Remove": False,
+    })
+if table:
+    key = f"sources_{qid}_{ver}"
+    cols = list(table[0])
     st.data_editor(
-        pd.DataFrame(rows), key=key, hide_index=True, width="stretch",
-        disabled=["Source", "Suggested", "Implied Leads", "Implied Deals", "Notes", "A.Cost", "Origin"],
-        column_config={"Remove": st.column_config.CheckboxColumn(width="small"), "P.Cost": MONEY, "A.Cost": MONEY,
-                       "Suggested": st.column_config.NumberColumn(
-                           format="dollar", help="Target deals × cost per deal over the suggestion window"),
-                       "Accept": st.column_config.CheckboxColumn(width="small", help="Use the suggested budget"),
-                       "Implied Leads": st.column_config.NumberColumn(format="%.0f", help="P.Cost ÷ CPL"),
-                       "Implied Deals": st.column_config.NumberColumn(format="%.1f", help="Implied leads ÷ LPD"),
-                       "Notes": st.column_config.TextColumn(width="medium")},
-        on_change=apply_edits, args=(qid, key, group, list(range(len(lines))), {"P.Cost": "p_cost"}, suggestions))
+        pd.DataFrame(table, columns=cols), key=key, hide_index=True, width="stretch", disabled=not edit or [
+            c for c in cols if c not in ("Remove", "Spend", "Revenue", "Deals", "Use Exit Rows")],
+        column_config={
+            "Remove": st.column_config.CheckboxColumn(width="small"),
+            "Backbone Spend": MONEY, "Backbone Deals": COUNT, "Backbone Revenue": MONEY,
+            "Cost / Deal": MONEY, "Avg Deal": MONEY,
+            "Spend": st.column_config.NumberColumn("Spend ✎", format="dollar", help="Type a budget"),
+            "Revenue": st.column_config.NumberColumn("Revenue ✎", format="dollar", help="Type the revenue to aim for"),
+            "Deals": st.column_config.NumberColumn("Deals ✎", format="%.2f", help="Type the number of deals"),
+            "Set By": st.column_config.TextColumn(help="The number you typed for this source"),
+            "Use Exit Rows": st.column_config.CheckboxColumn(
+                width="small", help="Let the exit rows below set this source's deals (and so its spend)"),
+            "Not Placed": st.column_config.NumberColumn(format="%.2f", help="Deals not yet placed on exit rows"),
+            "Actual Spend": MONEY, "Actual Deals": st.column_config.NumberColumn(format="%d"), "Actual Revenue": MONEY,
+            "Notes": st.column_config.TextColumn(width="large"),
+        },
+        on_change=edit_sources, args=(qid, key, names))
+else:
+    st.caption("No sources yet. Use Add Source below.")
 
-
-h.heading("Costs", "A", "Type a projection or accept a suggestion. 🟠 = your override. PVA = projected − actual, "
-          "green = under budget." if edit else "Projections are the quarter ÷ 3.")
 if edit:
-    cost_editor("marketing", "Marketing")
-    if proj.marketing:
-        c1, c2 = st.columns([1, 3], vertical_alignment="center")
-        c1.button("Accept All Budgets", icon=":material/done_all:", key=f"acc_mkt_{qid}_{ver}",
-                  on_click=fill, args=(qid, "marketing"),
-                  help="Fills empty or previously accepted lines. Typed values are never replaced.")
-        with c2.expander("How The Suggested Budgets Are Worked Out", icon=":material/function:"):
-            st.caption("Budget = target deals × leads per deal × CPL = target deals × cost per deal. Target deals = "
-                       "the source's P.Deals across all its revenue lines, so set revenue deals first.")
-            for c in proj.marketing:
-                s = sug.budgets.get(c.source)
-                if s:
-                    st.markdown(f"**{c.source}**\n" + "\n".join(f"- {line.replace('$', chr(92) + '$')}"
-                                                              for line in s.explain()))
-    other = next((c for c in view.costs if c.kind == OTHER_MARKETING), None)
-    if other and other.contributors:
-        with st.expander(f"Other Marketing (Unprojected) · {md_money(other.a_cost)}", icon=":material/campaign:"):
-            for s, v in sorted(other.contributors.items(), key=lambda kv: -kv[1]):
-                cc = st.columns([3, 2, 2], vertical_alignment="center")
-                cc[0].write(s)
-                cc[1].write(md_money(v))
-                if cc[2].button("Add To Projection", key=f"addother_{s}_{qid}_{ver}"):
-                    put(add_source(proj, s))
-                    st.rerun()
-    cost_editor("non_marketing", "Payroll And Other Costs (Manual Only)")
-    with st.popover("Add Source", icon=":material/add:"):
-        mkt = marketing_names(ds, settings)
-        on = {c.source for c in proj.marketing + proj.non_marketing}
-        pick = st.selectbox("From The Sheet", ["—"] + sorted(mkt - on), key=f"add_src_{qid}")
-        typed = st.text_input("Or Type A Name", key=f"add_src_typed_{qid}",
-                              help="Must match the COSTS / KPIs / REVENUES Source exactly to pick up actuals.")
-        kind = st.segmented_control("Type", ["Marketing", "Non-Marketing"], default="Marketing",
-                                    key=f"add_kind_{qid}")
-        name = typed.strip() or (pick if pick != "—" else "")
-        if st.button("Add", disabled=not name, key=f"add_src_btn_{qid}"):
-            put(add_source(proj, name, marketing=kind != "Non-Marketing"))
+    with st.container(horizontal=True):
+        unplaced = [r.source for r in rows if r.unallocated and abs(r.unallocated) >= 0.05 and r.unit.exits]
+        if st.button("Place Deals By Backbone Mix", icon=":material/call_split:", disabled=not unplaced,
+                     help="Spread each source's not-yet-placed deals over its exit rows in its backbone mix. "
+                          "You can still edit any exit row afterwards."):
+            for src in unplaced:
+                split_by_mix(proj, src, bb, settings)
+            put(proj)
             st.rerun()
-h.show(cost_rows_html())
+        with st.popover("Add Source", icon=":material/add:"):
+            mkt = marketing_names(ds, settings) | set(settings.get("own_no_cost_sources", []))
+            on = {c.source for c in proj.marketing}
+            pick = st.selectbox("From The Sheet", ["—"] + sorted(mkt - on), key=f"add_src_{qid}")
+            typed = st.text_input("Or Type A Name", key=f"add_src_typed_{qid}",
+                                  help="Must match the Source in the sheet exactly to pick up actuals.")
+            name = typed.strip() or (pick if pick != "—" else "")
+            if st.button("Add", disabled=not name, key=f"add_src_btn_{qid}"):
+                put(add_source(proj, name))
+                st.rerun()
 
-# ---------- B: revenue
-h.heading("Revenue", "B", "Follow Up = deals from sources that aren't on this quarter's projection at all.")
+# ---------- 2: exits
+h.heading("Deals By Exit Strategy", "2", "Place each source's deals on its exit strategies. Type deals, avg deal or "
+          "revenue on a row (revenue ÷ avg deal = deals). Follow Up is projected as one group.")
 actual_rev = {(x.block, x.source, x.exit): x for x in view.revenue if x.kind != UNPROJECTED}
-for block in BLOCKS:
-    subhead(BLOCK_LABELS[block])
-    idx = [i for i, r in enumerate(proj.revenue) if r.block == block]
-    lines = [x for x in view.revenue if x.block == block]
-    if edit and idx:
-        rows, rev_sug = [], {}
-        for i in idx:
-            r = proj.revenue[i]
-            x = actual_rev.get((r.block, r.source, r.exit))
-            s = sug.revenue.get((r.block, r.source, r.exit))
-            rev_sug[i] = s
-            rows.append({"Remove": False, "Source": r.source, "Exit": r.exit, "P.Deals": r.p_deals,
-                         "P.Avg": r.p_avg, "Sugg. Deals": num(s.p_deals if s else None),
-                         "Sugg. Avg": num(s.p_avg if s else None), "Accept": False, "P.Revenue": r.p_revenue,
-                         "A.Deals": x.a_deals if x else 0, "A.Avg": num(x.a_avg if x else None),
-                         "A.Revenue": x.a_revenue if x else 0.0, "Origin": ORIGIN[r.origin]})
-        key = f"rev_{block}_{qid}_{ver}"
-        st.data_editor(
-            pd.DataFrame(rows), key=key, hide_index=True, width="stretch",
-            disabled=["Source", "Exit", "Sugg. Deals", "Sugg. Avg", "P.Revenue", "A.Deals", "A.Avg", "A.Revenue",
-                      "Origin"],
-            column_config={"Remove": st.column_config.CheckboxColumn(width="small"), "P.Deals": COUNT,
-                           "P.Avg": MONEY, "Sugg. Deals": st.column_config.NumberColumn(
-                               format="%.2f", help="Deals in the window ÷ quarters in the window"),
-                           "Sugg. Avg": st.column_config.NumberColumn(format="dollar", help="Window revenue ÷ deals"),
-                           "Accept": st.column_config.CheckboxColumn(width="small", help="Use both suggested values"),
-                           "P.Revenue": MONEY, "A.Avg": MONEY, "A.Revenue": MONEY},
-            on_change=apply_edits, args=(qid, key, "revenue", idx, {"P.Deals": "p_deals", "P.Avg": "p_avg"}, rev_sug))
-    if not edit and lines:
-        h.show(h.table(["Source", "Exit Strategy", "P.Deals", "P.Avg", "P.Revenue", "A.Deals", "A.Avg", "A.Revenue"],
-                       [[h.esc(x.label), h.esc(x.exit), h.num(x.p_deals, 2), h.money(x.p_avg), h.money(x.p_revenue),
-                         str(x.a_deals), h.money(x.a_avg), h.money(x.a_revenue)] for x in lines],
-                       lambda n, lines=lines: "auto" if lines[n].kind == UNPROJECTED else "", left=(0, 1)))
-    projected = {(r.block, r.source, r.exit) for r in proj.revenue}
-    loose = [x for x in lines if (x.block, x.source, x.exit) not in projected]
-    if edit and loose:
-        h.show(h.table(["Actuals Without A Projected Line", "Exit Strategy", "A.Deals", "A.Avg", "A.Revenue"],
-                       [[h.esc(x.label) + " " + h.pill("unprojected", "ins"), h.esc(x.exit), str(x.a_deals),
-                         h.money(x.a_avg), h.money(x.a_revenue)] for x in loose], lambda n: "auto", left=(0, 1)))
-    fu = follow_up_sources(view, block)
-    if len(fu):
-        with st.expander(f"Follow Up Sources · {BLOCK_LABELS[block]}", icon=":material/call_split:"):
-            h.show(h.table(["Exit Strategy", "Source", "Deals", "Revenue"],
-                           [[h.esc(r.exit), h.esc(r.source), str(int(r.deals)), h.money(r.revenue)]
-                            for r in fu.itertuples()], left=(0, 1)))
-    if lines or idx:
-        t_p, t_pd = sum(x.p_revenue for x in lines), sum(x.p_deals for x in lines)
-        t_a, t_ad = sum(x.a_revenue for x in lines), sum(x.a_deals for x in lines)
-        h.show(h.table([f"{BLOCK_LABELS[block]} Subtotal", "P.Deals", "P.Revenue", "A.Deals", "A.Revenue",
-                        "PVA Revenue"], [["", h.num(t_pd, 2), h.money(t_p), str(t_ad), h.money(t_a),
-                                          h.signed_cell(t_a - t_p)]], lambda n: "sub"))
-    else:
-        st.caption("No lines and no deals yet.")
-h.show(h.table(["All Revenue (All Blocks)", "P.Deals", "P.Revenue", "A.Deals", "A.Revenue", "PVA Revenue"],
-               [["", h.num(sum(x.p_deals for x in view.revenue), 2), h.money(view.p_revenue),
-                 str(sum(x.a_deals for x in view.revenue)), h.money(view.a_revenue),
-                 h.signed_cell(view.a_revenue - view.p_revenue)]], lambda n: "tot"))
+exit_rows = []
+for line in proj.revenue:
+    u = bb.units.get(line.source)
+    b_deals, b_avg = (u.exits.get(line.exit, (0.0, None)) if u else (0.0, None))
+    x = actual_rev.get((line.block, line.source, line.exit))
+    exit_rows.append({"Source": line.source, "Exit": line.exit,
+                      "P.Deals": line.p_deals * scale, "P.Avg": line.p_avg, "P.Revenue": line.p_revenue * scale,
+                      "Backbone Deals": b_deals * scale, "Backbone Avg": num(b_avg),
+                      "Actual Deals": x.a_deals if x else 0, "Actual Revenue": x.a_revenue if x else 0.0,
+                      "Block": BLOCK_LABELS[line.block], "Remove": False})
+if exit_rows:
+    key = f"exits_{qid}_{ver}"
+    cols = list(exit_rows[0])
+    st.data_editor(
+        pd.DataFrame(exit_rows, columns=cols), key=key, hide_index=True, width="stretch",
+        disabled=not edit or [c for c in cols if c not in ("Remove", "P.Deals", "P.Avg", "P.Revenue")],
+        column_config={"Remove": st.column_config.CheckboxColumn(width="small"), "Backbone Deals": COUNT,
+                       "Backbone Avg": MONEY,
+                       "P.Deals": st.column_config.NumberColumn("P.Deals ✎", format="%.2f"),
+                       "P.Avg": st.column_config.NumberColumn("P.Avg ✎", format="dollar"),
+                       "P.Revenue": st.column_config.NumberColumn("P.Revenue ✎", format="dollar"),
+                       "Actual Deals": st.column_config.NumberColumn(format="%d"), "Actual Revenue": MONEY},
+        on_change=edit_exits, args=(qid, key))
+loose = [x for x in view.revenue if x.kind == UNPROJECTED]
+if loose:
+    h.show(h.table(["Actual Deals Without An Exit Row", "Exit Strategy", "Deals", "Revenue"],
+                   [[h.esc(x.label), h.esc(x.exit), str(x.a_deals), h.money(x.a_revenue)] for x in loose],
+                   lambda n: "auto", left=(0, 1)))
+fu_actual = {}
+for x in view.revenue:
+    if x.source == FOLLOW_UP:
+        for s, (d, r) in x.contributors.items():
+            fu_actual[s] = (fu_actual.get(s, (0, 0.0))[0] + d, fu_actual.get(s, (0, 0.0))[1] + r)
+b_fu = b_r[~b_r["source"].isin(proj.projected_sources())]
+b_fu = b_fu.groupby("source")["revenue"].agg(["size", "sum"])
+fu_sources = sorted(set(fu_actual) | set(b_fu.index))
+if fu_sources:
+    with st.expander("Follow Up Sources (Backbone And Actual)", icon=":material/call_split:"):
+        h.show(h.table(["Source", "Backbone Deals", "Backbone Revenue", "Actual Deals", "Actual Revenue"],
+                       [[h.esc(s), h.num(b_fu.loc[s, "size"] / q * scale if s in b_fu.index else 0),
+                         h.money(b_fu.loc[s, "sum"] / q * scale if s in b_fu.index else 0),
+                         str(fu_actual.get(s, (0, 0))[0]), h.money(fu_actual.get(s, (0, 0.0))[1])]
+                        for s in fu_sources]))
 if edit:
-    c1, c2 = st.columns([1, 3], vertical_alignment="center")
-    if proj.revenue:
-        c1.button("Accept All Revenue", icon=":material/done_all:", key=f"acc_rev_{qid}_{ver}",
-                  on_click=fill, args=(qid, "revenue"),
-                  help="Fills empty or previously accepted lines. Typed values are never replaced.")
-        with c2.expander("How The Suggested Revenue Is Worked Out", icon=":material/function:"):
-            st.caption("P.Deals = deals in the window ÷ quarters in the window; P.Avg = window revenue ÷ window "
-                       "deals (losses and $0 rows included). Follow Up pools the sources that aren't on the "
-                       "projection.")
-            for (blk, src, ex), s in sug.revenue.items():
-                pd_txt = f"{s.p_deals:.2f}" if s.p_deals is not None else "—"
-                avg_txt = md_money(s.p_avg) if s.p_avg is not None else "no deals"
-                st.markdown(f"- **{src} · {ex}** ({BLOCK_LABELS[blk]}): {s.deals} deals over {s.quarters:g} "
-                            f"quarter(s) → {pd_txt} per quarter; avg {avg_txt}"
-                            + (f" · from {', '.join(s.sources)}" if src == FOLLOW_UP and s.sources else ""))
-    with st.popover("Add Revenue Line", icon=":material/add:"):
-        blk = st.selectbox("Block", BLOCKS, format_func=BLOCK_LABELS.get, key=f"add_rev_block_{qid}")
-        exits = [e for e in KNOWN_EXITS if block_of(e) == blk]
-        sources = [FOLLOW_UP] + sorted({c.source for c in proj.marketing} | set(ds.revenues["source"]) - {""})
-        src = st.selectbox("Source", sources, key=f"add_rev_src_{qid}")
-        ex = st.selectbox("Exit Strategy", exits, key=f"add_rev_exit_{qid}")
+    with st.popover("Add Exit Row", icon=":material/add:"):
+        srcs = [c.source for c in proj.marketing] + [FOLLOW_UP]
+        src = st.selectbox("Source", srcs, key=f"add_rev_src_{qid}")
+        ex = st.selectbox("Exit Strategy", KNOWN_EXITS, key=f"add_rev_exit_{qid}")
         if st.button("Add", key=f"add_rev_btn_{qid}"):
-            put(add_revenue_line(proj, blk, src, ex))
+            put(add_revenue_line(proj, block_of(ex), src, ex))
             st.rerun()
 
-# ---------- D3: profit target
+# ---------- 3: non-marketing
+h.heading("Non-Marketing Costs", "3", "Payroll, consulting and general expenses: typed, starting at the backbone.")
+nm_rows = []
+for line in proj.non_marketing:
+    b = float(b_c.loc[b_c["source"] == line.source, "cost"].sum()) / q
+    nm_rows.append({"Line": line.source, "Group": "Payroll" if line.source in payroll else "Other",
+                    "Backbone Cost": b * scale, "P.Cost": line.p_cost * scale,
+                    "Actual Cost": next((c.a_cost for c in view.costs if c.source == line.source), 0.0)})
+if nm_rows:
+    key = f"nm_{qid}_{ver}"
+    st.data_editor(pd.DataFrame(nm_rows), key=key, hide_index=True, width="stretch",
+                   disabled=not edit or ["Line", "Group", "Backbone Cost", "Actual Cost"],
+                   column_config={"Backbone Cost": MONEY, "P.Cost": st.column_config.NumberColumn("P.Cost ✎",
+                                  format="dollar"), "Actual Cost": MONEY},
+                   on_change=edit_costs, args=(qid, key))
+
+# ---------- 4: totals
+h.heading("Totals", "4", f"{shown.label} · actual costs cover {view.costs_label}")
+base = {k: v * scale for k, v in backbone_tot.items()}
+rev_by_block = {b: sum(r.p_revenue for r in proj.revenue if r.block == b) * scale for b in BLOCK_LABELS}
+act_by_block = {b: sum(x.a_revenue for x in view.revenue if x.block == b) for b in BLOCK_LABELS}
+b_by_block = {b: float(b_r.loc[b_r["exit"].map(block_of) == b, "revenue"].sum()) / q * scale for b in BLOCK_LABELS}
+mkt_b = float(b_c.loc[b_c["source"].isin(marketing_names(ds, settings)), "cost"].sum()) / q * scale
+excl = set(settings.get("pct_base_excluded_exits", []))
+pct_base_p = (sum(r.p_revenue for r in proj.revenue if r.exit not in excl) + tot["not_placed"]) * scale
+pct_base_b = float(b_r.loc[~b_r["exit"].isin(excl), "revenue"].sum()) / q * scale
+lines = [(f"Revenue · {lbl}", b_by_block[b], rev_by_block[b], act_by_block[b], "") for b, lbl in BLOCK_LABELS.items()]
+if abs(tot["not_placed"]) >= 0.5:
+    lines.append(("Revenue · Not Yet On An Exit Row", 0.0, tot["not_placed"] * scale, 0.0, "auto"))
+lines += [("Revenue", base["revenue"], p_rev, view.a_revenue, "sub"),
+          ("Marketing Cost", mkt_b, tot["marketing"] * scale,
+           sum(c.a_cost for c in view.costs if c.kind != "non_marketing"), ""),
+          ("Non-Marketing Cost", base["cost"] - mkt_b, tot["non_marketing"] * scale,
+           sum(c.a_cost for c in view.costs if c.kind == "non_marketing"), ""),
+          ("Cost", base["cost"], p_cost, view.a_cost, "sub"),
+          ("Profit", base["profit"], p_profit, view.a_profit, "tot")]
+if in_progress:  # compare with what the projection expects by today, not the whole quarter
+    rev_f = elapsed_days(shown, ds.today) / shown.days
+    cost_f = len(view.cost_months) / len(shown.months)
+    lines = [(lbl, b, p, a, k, p * (cost_f if "Cost" in lbl else rev_f)) for lbl, b, p, a, k in lines]
+    lines[-1] = (*lines[-1][:5], p_profit * cost_f)  # profit is only measurable over cost-complete months
+else:
+    lines = [(*x, x[2]) for x in lines]
+no_costs = not view.cost_months
+body = [[lbl, h.money(b), h.money(p), "—" if lbl == "Profit" and no_costs else h.money(a),
+         h.signed_cell(None if lbl == "Profit" and no_costs else (e - a if "Cost" in lbl else a - e))]
+        for lbl, b, p, a, _, e in lines]
+body.append(["Cost % (of revenue excl. " + ", ".join(sorted(excl)) + ")",
+             h.pct(base["cost"] / pct_base_b if pct_base_b else None),
+             h.pct(p_cost / pct_base_p if pct_base_p else None),
+             h.pct(view.a_pct), ""])
+classes = [x[4] for x in lines] + [""]
+diff_label = "Vs Pace By Today" if in_progress else "Difference"
+h.show(h.table(["", f"Backbone ({bb.label})", "Projected", "Actual", diff_label], body, lambda n: classes[n]))
+rec = reconcile(ds, view)
+h.status(("✓ Actuals add up to the sheet: " if rec.ok else "⚠ Actuals don't add up to the sheet: ")
+         + f"costs {h.money(rec.sheet_cost, 2)}, revenue {h.money(rec.sheet_revenue, 2)} from {rec.sheet_deals} deals. "
+         + ("Vs pace compares actuals with the share of the projection expected by today (revenue by days "
+            "elapsed, costs by completed months). " if in_progress else "")
+         + "Green = better: more revenue or profit, less cost.")
+
+# ---------- work back from a profit target
 if edit:
-    with st.container(key="card-d3"):
-        h.heading("Profit Target", "D3", "Work backward from the profit you want to deals and budget per source.")
+    with st.expander("Work Back From A Profit Target", icon=":material/flag:"):
         t_key = f"target_{qid}_{ver}"
         tc = st.columns([1.3, 3], vertical_alignment="bottom")
         tc[0].number_input(f"Target Profit For {period.label}", min_value=0.0, step=10000.0, format="%.0f",
                            value=proj.profit_target, key=t_key, on_change=set_field,
                            args=(qid, t_key, "profit_target"), placeholder="e.g. 400000")
         if proj.profit_target is None:
-            tc[1].caption("Payroll, consulting and general expenses stay fixed at what you projected; Follow Up, "
-                          "Fix & Flip and Buy & Hold revenue stay at their projections.")
-        elif not sug.months:
-            tc[1].caption("No history window before this quarter, so plans can't be worked out.")
+            tc[1].caption("Type the profit you want. Non-marketing costs, Follow Up, Fix & Flip and Buy & Hold stay as "
+                          "projected above; the plans work out the marketing deals and spend needed.")
+        elif not bb.months:
+            tc[1].caption("No backbone before this quarter, so the plans can't be worked out.")
         else:
             fixed_costs, fixed_revenue = fixed_parts(proj)
             needed = needed_contribution(proj.profit_target, fixed_costs, fixed_revenue)
-            tc[1].html(f'<p class="status">Fixed costs {h.money(fixed_costs)} · fixed revenue (Follow Up, Fix & Flip, '
-                       f"Buy & Hold) {h.money(fixed_revenue)} · marketing sources must contribute "
-                       f"<b>{h.money(needed)}</b> after their own budget.</p>")
-            econ = source_economics(ds, proj, sug.months, settings)
-            avg = {e.source: e.avg_deal for e in econ}
+            tc[1].html(f'<p class="status">Fixed costs {h.money(fixed_costs)} · fixed revenue {h.money(fixed_revenue)} '
+                       f"· marketing sources must bring <b>{h.money(needed)}</b> after their own spend.</p>")
+            econ = source_economics(ds, proj, bb.months, settings)
             cap = settings.get("scale_cap", 1.5)
-            plans = ((plan_a(needed, econ), f"Fills the lowest cost-per-deal source first, up to {cap:g}× its best "
-                      "quarter, then the next."),
-                     (plan_b(needed, econ), "Scales your projected main-block deals by one factor across sources."))
+            plans = ((plan_a(needed, econ), f"Cheapest cost per deal first, up to {cap:g}× each source's best "
+                      "quarter."),
+                     (plan_b(needed, econ), "Your current main-revenue deals, all scaled by one factor."))
             for col, (plan, desc) in zip(st.columns(2), plans, strict=True):
                 with col:
+                    letter = plan.name.split(":")[0]
                     k_txt = f" · ×{plan.k:.2f}" if plan.k is not None else ""
                     st.html(f'<div style="font-family:var(--display);font-size:17px;font-weight:700;'
-                            f'color:var(--heading)">Plan {h.esc(plan.name)}{k_txt}</div>'
-                            f'<p class="status">{desc}</p>')
-                    rows = [[h.esc(x.source) + (" " + h.pill("over cap", "scale") if x.over_cap else ""),
+                            f'color:var(--heading)">Plan {h.esc(plan.name)}{k_txt}</div><p class="status">{desc}</p>')
+                    prow = [[h.esc(x.source) + (" " + h.pill("over cap", "scale") if x.over_cap else ""),
                              h.num(x.deals, 1), h.money(x.budget), h.money(x.contribution)] for x in plan.lines]
-                    rows.append(["Plan Total", "", h.money(plan.budget), h.money(plan.achieved)])
-                    last = len(rows) - 1
-                    h.show(h.table(["Source", "Deals", "Budget", "Contribution"], rows,
+                    prow.append(["Plan Total", "", h.money(plan.budget), h.money(plan.achieved)])
+                    last = len(prow) - 1
+                    h.show(h.table(["Source", "Deals", "Spend", "Brings In"], prow,
                                    lambda n, last=last: "tot" if n == last else ""))
                     if plan.shortfall > 0.5:
                         h.box(f"Short of target by {h.money(plan.shortfall)}: the usable sources hit their caps.",
                               "bad")
-                    letter = plan.name.split(":")[0]
-                    if plan.lines and st.button(f"Use Plan {letter} As Suggestions", key=f"use_{letter}_{qid}_{ver}",
-                                                help="Sets those sources' deals and budgets; edit any cell to "
-                                                     "override."):
-                        put(apply_plan(proj, plan, avg))
+                    if plan.lines and st.button(f"Use Plan {letter}", key=f"use_{letter}_{qid}_{ver}",
+                                                help="Sets those sources' deals (and so their spend) in table 1."):
+                        use_plan(proj, plan, bb, settings)
+                        put(proj)
                         st.rerun()
 
-# ---------- month by month and history
-with st.expander("Month By Month (Actuals)", icon=":material/calendar_month:"):
-    st.dataframe(monthly_costs(ds, period), width="stretch",
-                 column_config={c: MONEY for c in [*(m.label for m in period.months), "Total"]})
-    mr = monthly_revenue(ds, period)
-    st.dataframe(mr, width="stretch", column_config={c: MONEY for c in mr.columns if "revenue" in c})
-
-with st.expander("History", icon=":material/history:"):
-    quarters = store.list_quarters()
-    if quarters:
-        st.caption("Saved quarters: " + " · ".join(f"{q['quarter_id'].replace('-', ' ')} (updated "
-                                                    f"{q['updated_at']:%b %-d})" for q in quarters))
+with st.expander("Saved Versions", icon=":material/history:"):
     revs = store.list_revisions(qid)
     if not revs:
         st.caption("Nothing saved for this quarter yet.")
     else:
-        st.dataframe(pd.DataFrame([{"Revision": r["id"], "Saved": f"{r['saved_at']:%b %-d, %Y %-I:%M %p}",
+        st.dataframe(pd.DataFrame([{"Version": r["id"], "Saved": f"{r['saved_at']:%b %-d, %Y %-I:%M %p}",
                                     "By": r["saved_by"], "Note": r["note"]} for r in revs]),
                      hide_index=True, width="stretch")
-        pick = st.selectbox("Open A Revision", [r["id"] for r in revs], format_func=lambda i: f"#{i}",
-                            key=f"hist_{qid}")
+        vk = f"hist_{qid}"
+        pick = st.segmented_control("Open A Version", [r["id"] for r in revs], default=revs[0]["id"],
+                                    format_func=lambda i: f"#{i}", key=vk)
         if st.button("Open", key=f"hist_open_{qid}", help="Loads it as the working copy; save to make it current."):
             load(qid, store.get_revision(pick))
             state["dirty"][qid] = pick != revs[0]["id"]

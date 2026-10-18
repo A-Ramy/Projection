@@ -14,6 +14,7 @@ FOLLOW_UP = "Follow Up"
 Block = Literal["main", "fix_flip", "buy_hold"]
 BLOCKS: tuple[Block, ...] = ("main", "fix_flip", "buy_hold")
 Origin = Literal["manual", "accepted_suggestion", "override"]
+DriverKind = Literal["spend", "revenue", "deals", "exits"]
 
 
 class CostLine(BaseModel):
@@ -37,6 +38,16 @@ class RevenueLine(BaseModel):
         return self.p_deals * self.p_avg
 
 
+class Driver(BaseModel):
+    """The number typed for a source; the rest of the source is worked out from the backbone's economics.
+    spend -> deals = spend ÷ cost per deal; revenue -> deals = revenue ÷ avg deal; deals -> as typed;
+    exits -> deals = the sum of the source's exit rows."""
+
+    kind: DriverKind = "exits"
+    value: float = 0.0
+    typed: bool = False  # typed by you (a pre-filled backbone value is not): only typed numbers use the fallback
+
+
 class QuarterProjection(BaseModel):
     quarter_id: str  # "2026-Q4"
     marketing: list[CostLine] = Field(default_factory=list)
@@ -46,6 +57,7 @@ class QuarterProjection(BaseModel):
     lookback_from: str | None = None  # custom lookback, month keys "YYYY-MM"
     lookback_to: str | None = None
     profit_target: float | None = None
+    drivers: dict[str, Driver] = Field(default_factory=dict)  # per source, incl. FOLLOW_UP
 
     def projected_sources(self) -> set[str]:
         """Sources on the projection: a marketing line or a revenue row in any block (Follow Up excluded).

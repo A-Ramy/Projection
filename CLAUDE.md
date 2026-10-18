@@ -40,6 +40,17 @@ sync when a rule changes.
   "(unprojected)" row under that source, never Follow Up (owner correction, 2026-10-18).
 - P.% and A.% use one revenue base: total minus `pct_base_excluded_exits` (default Fix & Flip, Buy & Hold).
 
+## Projecting a quarter (owner's model, 2026-10-18; `projection/plan.py`)
+- Built at the start of the quarter on a **backbone**: the actuals of the quarter before (switchable: last 2
+  quarters, all since start, custom). A new quarter is pre-filled as the backbone repeated, so it starts equal to it.
+- Per source, type ONE of spend / revenue / deals; the rest follows from the backbone cost per deal and avg deal.
+  Deals are placed on Source × Exit rows by the owner ("Place Deals By Backbone Mix" is optional help); deals not
+  yet placed still count, at the source's avg deal. Avg deal is editable per exit row.
+- Marketing sources with spend; SELF GEN and Referral (setting `own_no_cost_sources`) projected on their own by
+  revenue or deals; every other no-cost source is projected as one **Follow Up** group (e.g. "3 deals").
+- A source with spend but no backbone deals uses the longer window's cost per deal, only for numbers you type.
+- Non-marketing lines start at the backbone cost and are typed. "Work Back From A Profit Target" is optional.
+
 ## Suggestions (key formulas)
 - Suggested budget = target deals × leads per deal × CPL = target deals × cost per deal. Identical on an
   All Leads or Net Leads (Qualified) basis; show both chains and the implied leads.

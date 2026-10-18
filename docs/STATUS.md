@@ -28,6 +28,12 @@
 | 13 | Final README + CLAUDE.md | Claude | Done | **Done** (2026-10-18) |
 
 ## Done so far
+- 2026-10-18 owner redesign of Projections (`projection/plan.py`, `views/projections.py`): backbone = the quarter
+  before (switchable), pre-filled automatically; per source type spend / revenue / deals and the rest is derived;
+  Source × Exit placement typed by the owner; SELF GEN and Referral projected on their own, other no-cost sources as
+  one Follow Up group; non-marketing typed; totals vs backbone and actual; profit target kept as an optional panel.
+  Removed: suggestion/accept columns, Start From Suggestions, Add Lines For Actuals, duplicate cost table, month by
+  month expander, "D3" label. Quarter / backbone / backtest pickers are click-only.
 - 2026-10-18 owner correction: Follow Up holds only sources that aren't on the quarter's projection at all; a
   projected source closing under an exit it has no row for gets its own "(unprojected)" row. Logos added
   (`assets/`). After a push that changes `.streamlit/config.toml` or engine modules, **reboot** the Streamlit

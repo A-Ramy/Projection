@@ -17,8 +17,10 @@ sync when a rule changes.
   Filter at load time, row by row (`projection/data/clean.py`).
 - COSTS: Date ≥ start. Each row is a **month total**; bucket by calendar month (dates can be the 27th/30th).
 - REVENUES: Date Closed ≥ start, grouped by month closed.
-- KPIs: **Date** (trigger date) ≥ start. Date Created is informational, no restriction. Blank Date = not
-  triggered yet → excluded and counted.
+- KPIs: **Date** (trigger date) ≥ start. Blank Date = not triggered yet → excluded and counted, except
+  Lead rows: Date there is the Quality-change date, so blank = Pending, and Pending leads count in All Leads
+  by Date Created ≥ start (owner decision, docs/STATUS.md Step 3; finalized in Step 4).
+- KPI and Stage names match funnel stages case-insensitively ("No-Show" = No-show).
 - Monthly grain first, then roll up (`projection/periods.py` GRAINS: month, quarter, half, year).
 - A month in progress has no costs. Cost comparisons run through the last cost-complete month and say so;
   revenue and KPIs run to today.

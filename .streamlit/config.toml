@@ -1,0 +1,18 @@
+[server]
+headless = true
+runOnSave = false
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
+
+# Total Cash Home Buyers brand (Victoria indigo / Cardinal red). The glass styling layer is injected
+# from projection/ui/brand.css.
+[theme]
+base = "light"
+primaryColor = "#BD2239"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F4FA"
+textColor = "#211E33"

@@ -1,0 +1,22 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+*service-account*.json
+*credentials*.json
+
+# Local app storage and any data exports (the sheet is the source of truth; never commit data)
+.data/
+*.csv
+*.xlsx
+*.xls
+*.parquet
+data-report*.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/

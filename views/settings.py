@@ -3,11 +3,13 @@
 from datetime import date
 
 import streamlit as st
+from streamlit_sortables import sort_items
 
 from projection.config import DEFAULT_SETTINGS
 from projection.data.schema import KNOWN_EXITS
 from projection.suggest.lookback import LOOKBACKS
 from ui import html as h
+from ui.brand import sortable_style
 from ui.state import get_dataset, get_settings, get_store, refresh
 
 st.title("Settings")
@@ -46,11 +48,16 @@ with st.form("settings"), st.container(key="card-settings"):
     ttl = c[1].number_input("Reload Data After (Minutes)", min_value=1, value=int(s["cache_ttl_minutes"]))
     saved = st.form_submit_button("Save Settings", type="primary", icon=":material/save:")
 
-if saved:
+
+def user_email() -> str:
     try:
-        who = st.user.email or ""
+        return st.user.email or ""
     except Exception:
-        who = ""
+        return ""
+
+
+if saved:
+    who = user_email()
     new = {"start_date": start.isoformat(), "pct_base_excluded_exits": excl, "non_marketing": non,
            "payroll": payroll, "active_sources": active, "lookback_default": lb, "low_conf_min_leads": int(min_leads),
            "low_conf_min_deals": int(min_deals), "scale_cap": float(cap), "cohort_immature_months": int(immature),
@@ -62,6 +69,23 @@ if saved:
     refresh()  # the start date and classifications change what's loaded
     st.toast("Settings saved", icon=":material/check:")
     st.rerun()
+
+st.subheader("Source Order")
+h.status("The order new quarters start in on Projections (each quarter can still be dragged into its own order). "
+         "Drag a source up or down; it saves straight away.")
+with st.container(key="card-order"):
+    order = sort_items(list(s["active_sources"]), direction="vertical", custom_style=sortable_style(),
+                       key="active_order_" + "|".join(s["active_sources"]))
+    if order != s["active_sources"]:
+        get_store().set_setting("active_sources", order, by=user_email())
+        st.toast("Source order saved", icon=":material/check:")
+        st.rerun()
+    if s["active_sources"] != DEFAULT_SETTINGS["active_sources"] and st.button(
+            "Use The Built-In List And Order", icon=":material/restart_alt:",
+            help=", ".join(DEFAULT_SETTINGS["active_sources"])):
+        get_store().set_setting("active_sources", DEFAULT_SETTINGS["active_sources"], by=user_email())
+        refresh()
+        st.rerun()
 
 with st.expander("Defaults", icon=":material/restart_alt:"):
     st.json({k: v for k, v in DEFAULT_SETTINGS.items()})

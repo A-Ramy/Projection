@@ -146,3 +146,13 @@ def test_old_save_keeps_its_spend_and_missing_active_sources_can_be_added(ds):
     assert [c.source for c in old.marketing] == ["PPC A", "SEO B", "Mailer C", "SELF GEN", "Hand Typed"]
     assert next(c for c in old.marketing if c.source == "SEO B").p_cost == 4000  # what you typed stays
     assert next(c for c in old.marketing if c.source == "PPC A").p_cost == 30000
+
+
+def test_reorder_moves_sources_and_their_exit_rows(ds, p):
+    from projection.plan import reorder
+
+    reorder(p, ["SELF GEN", "PPC A"])
+    assert [c.source for c in p.marketing] == ["SELF GEN", "PPC A", "SEO B", "Mailer C"]  # the rest keep their place
+    assert [r.source for r in p.revenue] == ["SELF GEN"] * 2 + ["PPC A"] * 3 + ["SEO B", FOLLOW_UP]
+    assert DEFAULT_SETTINGS["active_sources"][:3] == ["PPC NW RDS", "PPC NW SM3", "SEO HESEL (WEBUYSOUTHFL.COM)"]
+    assert DEFAULT_SETTINGS["active_sources"][-1] == "PPC FL RDS"

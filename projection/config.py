@@ -36,10 +36,9 @@ DEFAULT_SETTINGS: dict = {
     # The sources projected on their own (owner's list, 2026-10-18). Every other source is projected as part of
     # Follow Up. Names must match the sheet exactly; no-cost ones (SELF GEN, Referral) are projected by revenue/deals.
     "active_sources": [
-        "PPC NW RDS", "PPC NW SM3", "PPC FL RDS", "SEO MEGA (TOTALCHB.CO)", "SEO CARROT (TOTALCHB.COM)",
-        "SEO (NW WordPress)", "SEO HESEL (WEBUYSOUTHFL.COM)", "SEO (GMB TCHB)", "Facebook Ads (HESEL)", "SELF GEN",
-        "Referral",
-    ],
+        "PPC NW RDS", "PPC NW SM3", "SEO HESEL (WEBUYSOUTHFL.COM)", "SEO MEGA (TOTALCHB.CO)", "Facebook Ads (HESEL)",
+        "SEO CARROT (TOTALCHB.COM)", "SEO (NW WordPress)", "SEO (GMB TCHB)", "SELF GEN", "Referral", "PPC FL RDS",
+    ],  # also the default row order on Projections (each quarter can be dragged into its own order)
     # Revenue base for P.% and A.%: total revenue minus these exit strategies.
     "pct_base_excluded_exits": ["Fix & Flip", "Buy & Hold"],
     "low_conf_min_leads": 30,

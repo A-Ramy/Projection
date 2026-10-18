@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
+from streamlit_sortables import sort_items
 
 from projection.data.schema import KNOWN_EXITS, block_of
 from projection.metrics.core import in_months, marketing_names
@@ -20,6 +21,7 @@ from projection.plan import (
     add_active_sources,
     backbone,
     prefill,
+    reorder,
     set_driver,
     source_rows,
     split_by_mix,
@@ -38,6 +40,7 @@ from projection.planning import (
 )
 from projection.suggest.profit_target import fixed_parts, needed_contribution, plan_a, plan_b, source_economics
 from ui import html as h
+from ui.brand import sortable_style
 from ui.state import get_dataset, get_settings, get_store
 
 MONEY = st.column_config.NumberColumn(format="dollar")
@@ -361,6 +364,20 @@ if edit:
                 split_by_mix(proj, src, bb, settings)
             put(proj)
             st.rerun()
+        with st.popover("Reorder Sources", icon=":material/drag_indicator:"):
+            st.caption("Drag a source up or down; the exit rows below follow. Follow Up stays last.")
+            current = [c.source for c in proj.marketing]
+            moved = sort_items(current, direction="vertical", custom_style=sortable_style(), key=f"order_{qid}_{ver}")
+            if moved != current:
+                reorder(proj, moved)
+                put(proj)
+                st.rerun()
+            default = [s for s in dict.fromkeys(settings.get("active_sources", [])) if s in current]
+            if st.button("Default Order", icon=":material/sort:", disabled=current[:len(default)] == default,
+                         key=f"order_default_{qid}", help="The order of the active sources in Settings"):
+                reorder(proj, default)
+                put(proj)
+                st.rerun()
         with st.popover("Add Source", icon=":material/add:"):
             mkt = (marketing_names(ds, settings) | set(ds.revenues["source"]) | set(ds.leads["source"])) - {""}
             on = {c.source for c in proj.marketing}

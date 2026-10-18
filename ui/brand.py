@@ -114,6 +114,19 @@ w.location.reload();
 </script>""", height=0)
 
 
+def sortable_style() -> str:
+    """CSS for streamlit-sortables (it renders in its own frame, so the page stylesheet doesn't reach it)."""
+    t = TOKENS[theme_type()]
+    return f"""
+.sortable-component {{ background: transparent; border: 0; padding: 0; font-family: 'Nunito Sans', sans-serif; }}
+.sortable-container, .sortable-container-body {{ background: transparent; padding: 0; }}
+.sortable-item, .sortable-item:hover {{
+  background: {t['sub']}; color: {t['heading']}; border: 1px solid {t['line-strong']}; border-radius: 10px;
+  text-align: left; padding: 7px 12px; margin: 4px 0; font-size: 14px; font-weight: 600; cursor: grab; }}
+.sortable-item::before {{ content: '⠿'; color: {t['muted']}; margin-right: 10px; }}
+"""
+
+
 def plotly_layout() -> dict:
     """Recessive axes and grid, brand fonts, transparent surface (the glass card shows through)."""
     t = TOKENS[theme_type()]

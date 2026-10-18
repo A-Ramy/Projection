@@ -28,6 +28,11 @@
 | 13 | Final README + CLAUDE.md | Claude | Done | **Done** (2026-10-18) |
 
 ## Done so far
+- 2026-10-18 default source order (owner): PPC NW RDS, PPC NW SM3, SEO HESEL (WEBUYSOUTHFL.COM), SEO MEGA
+  (TOTALCHB.CO), Facebook Ads (HESEL), SEO CARROT (TOTALCHB.COM), SEO (NW WordPress), SEO (GMB TCHB), SELF GEN,
+  Referral, PPC FL RDS. Drag to reorder: Projections → Reorder Sources (per quarter, with Default Order) and
+  Settings → Source Order (saves straight away; "Use The Built-In List And Order" if a saved setting differs).
+  Uses `streamlit-sortables`.
 - 2026-10-18 owner's active source list (setting `active_sources`): PPC NW RDS, PPC NW SM3, PPC FL RDS, SEO MEGA
   (TOTALCHB.CO), SEO CARROT (TOTALCHB.COM), SEO (NW WordPress), SEO HESEL (WEBUYSOUTHFL.COM), SEO (GMB TCHB),
   Facebook Ads (HESEL), SELF GEN, Referral; everything else is Follow Up. Data Quality flags active names not in the

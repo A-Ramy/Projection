@@ -48,6 +48,8 @@ sync when a rule changes.
   yet placed still count, at the source's avg deal. Avg deal is editable per exit row.
 - The **active sources** (setting `active_sources`, owner's list) are projected on their own, no-cost ones (SELF GEN,
   Referral) by revenue or deals; every other source is projected as one **Follow Up** group (e.g. "3 deals").
+  The list's order is the default row order (dragged in Settings → Source Order); each quarter can be dragged into its
+  own order (Reorder Sources, `plan.reorder`); exit rows follow and Follow Up stays last.
 - A source with spend but no backbone deals uses the longer window's cost per deal, only for numbers you type.
 - Non-marketing lines start at the backbone cost and are typed. "Work Back From A Profit Target" is optional.
 

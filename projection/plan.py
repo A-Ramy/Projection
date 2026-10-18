@@ -256,11 +256,16 @@ def add_active_sources(p: QuarterProjection, ds: Dataset, period: Period, settin
         if src in fresh.drivers:
             p.drivers[src] = fresh.drivers[src]
         p.revenue += [r for r in fresh.revenue if r.source == src]
-    order = {s: i for i, s in enumerate(dict.fromkeys(settings.get("active_sources", [])))}
-    p.marketing.sort(key=lambda c: order.get(c.source, len(order)))
-    _sort(p)
+    reorder(p, list(dict.fromkeys(settings.get("active_sources", []))))
     sync_costs(p, backbone(ds, p, period), settings)
     return added
+
+
+def reorder(p: QuarterProjection, order: list[str]) -> None:
+    """Put the marketing lines in this order (names not in it keep their place after it); revenue rows follow."""
+    pos = {s: i for i, s in enumerate(order)}
+    p.marketing.sort(key=lambda c: pos.get(c.source, len(pos)))
+    _sort(p)
 
 
 def use_plan(p: QuarterProjection, plan, bb: Backbone, settings: dict) -> None:

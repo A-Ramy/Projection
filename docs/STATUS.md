@@ -11,8 +11,8 @@
 | # | Step | Who | Gate (must pass before the next step) | State |
 |---|---|---|---|---|
 | 1 | Service account (project "TCHB Projection PTA", account systems@totalchb.com), Sheets API on, JSON key, sheet shared as Viewer, key saved as env var `GOOGLE_SERVICE_ACCOUNT_JSON_B64` | Owner | In a new session: variable present and valid JSON; read-only read of the sheet's tab names succeeds | **Done** (verified 2026-10-18) |
-| 2 | Live data report (`scripts/profile.py`) | Claude | Runs; COSTS totals match the figures in the session handoff message | **Next** |
-| 3 | Owner reviews report (KPI/Quality/Stage values vs 15 funnel stages, duplicates, blank KPI dates, near-duplicate names, revenue sources with no leads, address match rate) | Owner | Owner confirms names and counting rules | Not started |
+| 2 | Live data report (`scripts/profile.py`) | Claude | Runs; COSTS totals match the figures in the session handoff message | **Done** (verified 2026-10-18) |
+| 3 | Owner reviews report (KPI/Quality/Stage values vs 15 funnel stages, duplicates, blank KPI dates, near-duplicate names, revenue sources with no leads, address match rate) | Owner | Owner confirms names and counting rules | **Next** |
 | 4 | Finalize metric definitions from the real values | Claude → Owner | Owner approves | Not started |
 | 5 | Phase b: metrics engine + tests | Claude | All tests pass, incl. $37,500 and Follow Up roll-up | Not started |
 | 6 | Phase c: Projections tab, saved quarters | Claude | Q1–Q3 totals reconcile to the sheet | Not started |
@@ -25,6 +25,9 @@
 | 13 | Final README + CLAUDE.md | Claude | Done | Not started |
 
 ## Done so far
+- Step 2 verified (2026-10-18): `scripts/profile.py` ran on the live sheet; all handoff COSTS checks
+  (quarter totals, source totals, blank cells, off-month-end date, 2026 separator rows) reproduced exactly.
+  Report saved locally to `.data/data-report.md` (gitignored, never committed).
 - Step 1 verified (2026-10-18): `GOOGLE_SERVICE_ACCOUNT_JSON_B64` decodes to valid service-account JSON;
   read-only (`spreadsheets.readonly`) read of the sheet's tab names returned COSTS, REVENUES, KPIs.
 - Phases 0 + a code (commit `29d030e`): read-only fetch, parse/clean/validate, data report, Data Quality page,

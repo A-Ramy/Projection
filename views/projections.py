@@ -89,6 +89,12 @@ def put(p: QuarterProjection) -> None:
     state["ver"][p.quarter_id] = state["ver"].get(p.quarter_id, 0) + 1  # fresh editors after every change
 
 
+def has_numbers(p: QuarterProjection) -> bool:
+    """Any cost, deals or typed number on it (a version saved as bare names has none)."""
+    return (any(c.p_cost for c in p.marketing + p.non_marketing) or any(r.p_deals for r in p.revenue)
+            or any(d.typed and d.value for d in p.drivers.values()))
+
+
 def is_empty(p: QuarterProjection) -> bool:
     return not p.marketing and not p.revenue and not p.drivers
 
@@ -197,10 +203,13 @@ if proj.lookback == "custom" and before:
         st.rerun()
 
 bb = backbone(ds, proj, period)
-if is_empty(proj) and bb.months and store.latest_revision(qid) is None:
-    proj = prefill(ds, period, settings, proj)  # a new quarter starts as the backbone repeated
-    put(proj)
-    st.rerun()
+if bb.months and (is_empty(proj) and store.latest_revision(qid) is None or not has_numbers(proj)):
+    # a new quarter (or one saved with no numbers in it) starts as the backbone repeated
+    fresh = prefill(ds, period, settings, proj)
+    if has_numbers(fresh):
+        put(fresh)
+        st.toast("Pre-filled from the backbone: Save to keep it", icon=":material/auto_fix:")
+        st.rerun()
 
 rev_id = state["rev"].get(qid)
 saved = store.get_revision(rev_id) if rev_id else None

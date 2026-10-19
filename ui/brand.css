@@ -145,7 +145,7 @@ table.t{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeri
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
 .chip{border-radius:999px;background:var(--glass);border:1px solid var(--glass-border);padding:5px 13px;font-size:13.5px}
 .chip b{color:var(--bad)}
-.cvbar{display:grid;gap:3px;min-width:120px}.cvbar i{display:block;height:6px;border-radius:999px}
+.cvbar{display:grid;gap:3px;min-width:64px}.cvbar i{display:block;height:6px;border-radius:999px}
 .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted);margin:4px 0}
 .legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:14px;height:4px;border-radius:2px;display:inline-block}
 .err{font-weight:700;border-radius:6px;padding:0 6px}

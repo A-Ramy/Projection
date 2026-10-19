@@ -54,7 +54,9 @@ sync when a rule changes.
   (spend, deals, revenue each typed; exit avg = revenue ÷ deals). Avg deal is editable per exit row.
 - Table edits are collected and applied together (Apply Changes bar); Save is blocked while edits are pending.
 - UI says **Projection Base** (never "backbone"). ROAS = revenue ÷ marketing spend (tile, per source, per exit:
-  exit revenue ÷ deals × cost per deal). Tables show every row (`ui.layout.fit`).
+  exit revenue ÷ deals × cost per deal). "View ROAS Breakdown" opens overall / per source / per exit, projected next
+  to actual (`metrics/roas.py`; actuals over cost-complete months, off-projection spend grouped as Follow Up).
+  Tables show every row (`ui.layout.fit`).
 - The **active sources** (setting `active_sources`, owner's list) are projected on their own, no-cost ones (SELF GEN,
   Referral) by revenue or deals; every other source is projected as one **Follow Up** group (e.g. "3 deals").
   The list's order is the default row order (dragged in Settings → Source Order); each quarter can be dragged into its

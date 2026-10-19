@@ -10,6 +10,7 @@ import streamlit as st
 from streamlit_sortables import sort_items
 
 from projection.data.schema import KNOWN_EXITS, block_of
+from projection.metrics import roas as roas_m
 from projection.metrics.core import in_months, marketing_names
 from projection.metrics.follow_up import UNPROJECTED
 from projection.metrics.pacing import cost_pace, daily_pace
@@ -335,6 +336,50 @@ tiles.insert(1, ("ROAS · Projected", fmt_x(p_roas),
                  f"Revenue ÷ marketing spend<br>Base {fmt_x(b_roas)} · actual {fmt_x(a_roas)}"
                  + ("" if view.cost_months else " (no cost month yet)")))
 h.tiles(tiles)
+
+
+@st.dialog("ROAS Breakdown", width="large")
+def roas_breakdown() -> None:
+    """Overall, per source and per exit ROAS, projected next to actual."""
+    pr = roas_m.projected(proj, rows)
+    ac = roas_m.actual(ds, proj, view.cost_months, settings) if view.cost_months else None
+    x = lambda v: "—" if v is None else f"{v:.2f}x"  # noqa: E731
+    m = lambda v: "—" if v is None else h.money(v)  # noqa: E731
+    act_note = (f"Actual = {view.costs_label} (revenue from the same months, so it lines up with spend)."
+                if ac else "No cost month has posted yet in this period, so there is no actual ROAS.")
+    h.status(f"ROAS = revenue ÷ marketing spend. Projected = {shown.label}. {act_note} Per exit, a source's spend "
+             "is shared by deals (deals × its cost per deal). No-spend sources show —.")
+    a_tot = (ac.spend, ac.revenue, ac.roas) if ac else (None, None, None)
+    h.show(h.table(["Overall", "Spend", "Revenue", "ROAS"], [
+        ["Projected", m(pr.spend * scale), m(pr.revenue * scale), f"<b>{x(pr.roas)}</b>"],
+        ["Actual", m(a_tot[0]), m(a_tot[1]), f"<b>{x(a_tot[2])}</b>"],
+        [f"Projection Base ({bb.label})", m(backbone_tot["marketing"] * scale), m(backbone_tot["revenue"] * scale),
+         x(b_roas if b_roas == b_roas else None)]]))
+
+    def joined(p_lines, a_lines, key):
+        a_by = {key(r): r for r in a_lines}
+        keys = [key(r) for r in p_lines] + [k for k in (key(r) for r in a_lines) if k not in {key(r) for r in p_lines}]
+        p_by = {key(r): r for r in p_lines}
+        out = []
+        for k in keys:
+            pl, al = p_by.get(k), a_by.get(k)
+            out.append([*(h.esc(v) for v in k),
+                        m(pl.spend * scale if pl and pl.spend else None), m(pl.revenue * scale if pl else None),
+                        x(pl.roas if pl else None),
+                        m(al.spend if al else None), m(al.revenue if al else None), x(al.roas if al else None)])
+        return out
+
+    cols = ["P. Spend", "P. Revenue", "P. ROAS", "A. Spend", "A. Revenue", "A. ROAS"]
+    st.html('<div class="sh"><span class="t1">By Source</span></div>')
+    h.show(h.table(["Source", *cols], joined(pr.sources, ac.sources if ac else [], lambda r: (r.source,))))
+    st.html('<div class="sh"><span class="t1">By Exit Strategy</span></div>')
+    h.show(h.table(["Source", "Exit", *cols], joined(pr.exits, ac.exits if ac else [], lambda r: (r.source, r.exit)),
+                   left=(0, 1)))
+
+
+if st.button("View ROAS Breakdown", icon=":material/insights:", type="tertiary", key=f"roas_{qid}",
+             help="Overall, per source and per exit ROAS, projected and actual"):
+    roas_breakdown()
 
 
 # ---------- 1: sources

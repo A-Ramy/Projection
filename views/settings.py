@@ -1,5 +1,6 @@
 """Settings: stored in the app's own database (never in the Google Sheet)."""
 
+import json
 from datetime import date
 
 import streamlit as st
@@ -18,9 +19,14 @@ h.status("Stored in the app's own database, never in the Google Sheet. Changes a
 s = get_settings()
 ds = get_dataset()
 cost_names = sorted(set(ds.costs["source"])) if ds is not None else []
-names = sorted(set(cost_names) | set(s["non_marketing"]))
+names = sorted(set(cost_names) | set(s["non_marketing"]) | set(s["payroll"]))  # saved names stay even if not posted
 all_sources = set() if ds is None else (set(ds.costs["source"]) | set(ds.revenues["source"]) | set(ds.leads["source"]))
 src_names = sorted((all_sources - set(s["non_marketing"]) - {""}) | set(s["active_sources"]))
+
+unposted = [n for n in s["non_marketing"] + s["payroll"] if ds is not None and n not in cost_names]
+if unposted:
+    h.box("Saved cost lines with no COSTS rows since the start date: " + ", ".join(h.esc(n) for n in
+          dict.fromkeys(unposted)) + ". They're kept; check the spelling in COSTS if they should have costs.", "warn")
 
 with st.form("settings"), st.container(key="card-settings"):
     start = st.date_input("Start Date", value=date.fromisoformat(s["start_date"]), format="YYYY-MM-DD",
@@ -30,7 +36,7 @@ with st.form("settings"), st.container(key="card-settings"):
                           help="Both P.% and A.% divide by total revenue minus these exit strategies.")
     non = st.multiselect("Non-Marketing Cost Lines", names, default=s["non_marketing"],
                          help="Every other COSTS name is a marketing source. New names default to marketing.")
-    payroll = st.multiselect("Of Which Payroll", names, default=[p for p in s["payroll"] if p in names],
+    payroll = st.multiselect("Of Which Payroll", names, default=s["payroll"],
                              help="Grouped as Payroll on the Projections tab.")
     active = st.multiselect("Active Sources (Projected On Their Own)", src_names, default=s["active_sources"],
                             accept_new_options=True,
@@ -87,6 +93,12 @@ with st.container(key="card-order"):
             help=", ".join(DEFAULT_SETTINGS["active_sources"])):
         get_store().set_setting("active_sources", DEFAULT_SETTINGS["active_sources"], by=user_email())
         st.rerun()
+
+st.subheader("Backup")
+h.status("Every saved projection version and setting, as one file. Keep a copy now and then (e.g. each quarter).")
+st.download_button("Download Backup", data=json.dumps(get_store().export(), indent=1, default=str),
+                   file_name=f"projection-backup-{date.today().isoformat()}.json", mime="application/json",
+                   icon=":material/download:")
 
 with st.expander("Defaults", icon=":material/restart_alt:"):
     st.json({k: v for k, v in DEFAULT_SETTINGS.items()})

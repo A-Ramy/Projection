@@ -91,7 +91,8 @@ def signed_cell(v, fmt: Callable = money) -> str:
 
 
 def arrow(cur, prev) -> str:
-    if not (ok(cur) and ok(prev)) or prev == 0:
+    """Change vs the previous period; none when either side is 0 (a drop to nothing is shown by the 0 itself)."""
+    if not (ok(cur) and ok(prev)) or prev == 0 or cur == 0:
         return ""
     d = (cur - prev) / abs(prev)
     return f' <span class="{"up" if d >= 0 else "down"}">{"▲" if d >= 0 else "▼"}{abs(d) * 100:.0f}%</span>'

@@ -26,3 +26,16 @@ def test_revisions_are_append_only_history(tmp_path):
 def test_neon_url_uses_psycopg_driver():
     assert normalize_url("postgresql://u:p@host/db").startswith("postgresql+psycopg://")
     assert normalize_url("postgres://u:p@host/db").startswith("postgresql+psycopg://")
+
+
+def test_export_has_settings_and_every_version(tmp_path):
+    import json
+
+    from projection.storage import Store
+
+    store = Store(f"sqlite:///{tmp_path / 'b.db'}")
+    store.set_setting("scale_cap", 2.0, by="owner")
+    store.save_revision("2026-Q4", {"quarter_id": "2026-Q4"}, by="owner", note="a")
+    store.save_revision("2026-Q4", {"quarter_id": "2026-Q4"}, by="owner", note="b")
+    out = json.loads(json.dumps(store.export()))
+    assert out["settings"] == {"scale_cap": 2.0} and [r["note"] for r in out["projection_revisions"]] == ["a", "b"]

@@ -28,6 +28,10 @@
 | 13 | Final README + CLAUDE.md | Claude | Done | **Done** (2026-10-18) |
 
 ## Done so far
+- 2026-10-19 ROAS breakdown pop-up (overall, per source, per exit; projected vs actual); Funnel "Paid Sources Only";
+  Settings keeps saved payroll/non-marketing names (warns when not in COSTS) and has a Backup download; Backtest
+  controls stacked, singular/plural wording; PTA arrows hidden when a side is 0.
+- Owner to do: rename KPIs Source "SEO (CARROT)" -> "SEO CARROT (TOTALCHB.COM)" (and in GHL); test Q4 end to end.
 - 2026-10-19 owner decisions: Reload Data After works (sheet read once per window); Cohorts Flagged As Recent works
   (Funnel/PTA "still maturing"); settings changes don't re-read the sheet; a month is cost-complete once all payroll
   lines and the active sources that spent the month before are posted ($0 rows count) or it's 2 months old.

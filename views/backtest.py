@@ -25,7 +25,7 @@ if not done:
     h.box("No finished quarter after the start date yet.", "warn")
     st.stop()
 
-c = st.columns([1.6, 2.4, 3], vertical_alignment="bottom")
+c = [st.container(), st.container(), st.container()]  # one control per row, so long labels never get cut off
 by_key = {p.key: p for p in done}
 target = by_key[c[0].segmented_control("Quarter", list(by_key), default=done[0].key, key="bt_quarter",
                                        format_func=lambda k: by_key[k].label) or done[0].key]
@@ -51,6 +51,10 @@ def err_cell(e) -> str:
     return f'<td><span class="err {k}">{e * 100:+.0f}%</span></td>'
 
 
+def plural(n: float, word: str) -> str:
+    return f"{h.num(n, 0) if word == 'lead' else h.num(n)} {word}{'' if n == 1 else 's'}"
+
+
 FMT = {"budget": h.money, "leads": lambda v: h.num(v, 0), "deals": h.num, "revenue": h.money}
 cols = ["Source"]
 for m in METRICS:
@@ -59,8 +63,8 @@ rows = []
 for r in bt.rows:
     if not r.predictable:
         rows.append([h.esc(r.source), f'<td colspan="12" class="l muted">{r.note}, so no prediction. Actual: '
-                     f"{h.money(r.actual_budget)} spend, {h.num(r.actual_leads, 0)} leads, {h.num(r.actual_deals)} "
-                     "deals.</td>"])
+                     f"{h.money(r.actual_budget)} spend, {plural(r.actual_leads, 'lead')}, "
+                     f"{plural(r.actual_deals, 'deal')}.</td>"])
         continue
     cells = [h.esc(r.source)]
     for m in METRICS:

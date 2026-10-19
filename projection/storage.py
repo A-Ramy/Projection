@@ -123,6 +123,14 @@ class Store:
                              .order_by(revisions_table.c.id.desc()))
             return [dict(r._mapping) for r in rows]
 
+    def export(self) -> dict:
+        """Everything the app saved (settings and every projection version), for a backup download."""
+        with self.engine.connect() as c:
+            settings = {r.key: r.value for r in c.execute(select(settings_table))}
+            revisions = [{**dict(r._mapping), "saved_at": r.saved_at.isoformat()}
+                         for r in c.execute(select(revisions_table).order_by(revisions_table.c.id))]
+        return {"settings": settings, "projection_revisions": revisions}
+
     def list_quarters(self) -> list[dict]:
         with self.engine.connect() as c:
             return [dict(r._mapping) for r in c.execute(select(quarters_table).order_by(quarters_table.c.quarter_id))]

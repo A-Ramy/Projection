@@ -5,7 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from projection.funnel_config import ADDED, ALL_CONVERSIONS, LEAKAGE, LIVE_TRANSFER, MAIN_PATH, PREVIOUS
-from projection.metrics.core import cost_complete_months
+from projection.metrics.core import cost_complete_months, in_months, marketing_names
 from projection.metrics.funnel import Filters, closed_deal_check, conversion_rates, stage_table
 from projection.metrics.pta import REP_DIMENSIONS
 from projection.periods import Month, is_recent, month_range, period_of
@@ -26,10 +26,13 @@ quarters = list(dict.fromkeys(period_of(m, "quarter") for m in months))
 periods = {q.key: (q.label + (" (To Date)" if q.end >= ds.today else ""), list(q.months)) for q in quarters}
 periods |= {m.key: (m.label, [m]) for m in months}
 done_q = [q.key for q in quarters if q.end < ds.today]
-sources = sorted((set(ds.leads["source"]) | set(ds.revenues["source"])) - {""})
+sources = sorted((set(ds.leads["source"]) | set(ds.revenues["source"]) | marketing_names(ds, settings)) - {""})
+PAID = "Paid Sources Only"
 
 c = st.columns([2.4, 1.4, 2, 2, 2], vertical_alignment="bottom")
-src = c[0].selectbox("Source", ["All Sources (Company)"] + sources, key="fun_src")
+src = c[0].selectbox("Source", ["All Sources (Company)", PAID] + sources, key="fun_src",
+                     help="Paid Sources Only: just the sources with marketing spend in the period, so cost per stage "
+                          "isn't diluted by free leads (SELF GEN, Referral, blank source).")
 dim = c[1].segmented_control("Rep", ["ACQ", "FUS"], default="ACQ", key="fun_dim") or "ACQ"
 col = REP_DIMENSIONS[dim].kpi_col
 reps = sorted(set(ds.kpis[col]) - {""})
@@ -39,8 +42,10 @@ pk = c[3].selectbox("Period", list(periods), index=list(periods).index(done_q[-1
 method = c[4].segmented_control("Conversion", ["period", "cohort"], default="period", key="fun_method",
                                 format_func=lambda m: "Period Ratio" if m == "period" else "Cohort") or "period"
 pmonths = [m for m in periods[pk][1] if m <= Month.of(ds.today)]
-filters = Filters(sources=None if src.startswith("All") else (src,), rep_col=col if rep != "All" else None,
-                  rep=rep if rep != "All" else None)
+spent = in_months(ds.costs, pmonths)
+paid = tuple(sorted(set(spent.loc[spent["cost"] > 0, "source"]) & marketing_names(ds, settings)))
+chosen = None if src.startswith("All") else paid if src == PAID else (src,)
+filters = Filters(sources=chosen, rep_col=col if rep != "All" else None, rep=rep if rep != "All" else None)
 company = filters.sources is None and not filters.by_rep
 cmonths = [m for m in pmonths if m in set(cost_complete_months(ds))]
 
@@ -86,8 +91,9 @@ with left, st.container(key="card-life"):
             f'<div class="funnel">{"".join(rows)}</div><div class="chips">{chips}</div><p class="status">{note}</p>')
 
 with right, st.container(key="card-cvp"):
-    st.html(f'<div class="sh"><span class="t1">Cost Vs Profit Per Stage</span><small>'
-            f'{"company view" if company else "" if filters.by_rep else "this source"}</small></div>')
+    view_name = ("company view" if company else "" if filters.by_rep
+                 else "paid sources" if src == PAID else "this source")
+    st.html(f'<div class="sh"><span class="t1">Cost Vs Profit Per Stage</span><small>{view_name}</small></div>')
     if filters.by_rep or not cmonths:
         h.status("Hidden under a rep filter." if filters.by_rep else "Waiting for this period's costs to post.")
     else:
@@ -109,7 +115,8 @@ with right, st.container(key="card-cvp"):
                                                           "revenue isn't the cohort's)." if method == "cohort" else ""))
 
 h.heading("All Stages", None, "Marketing view = revenue − marketing cost; company view = revenue − all costs incl. "
-          "payroll" if company else "" if filters.by_rep else "Source view = revenue − this source's marketing cost")
+          "payroll" if company else "" if filters.by_rep else ("Paid sources = their revenue − their marketing cost: "
+          + ", ".join(paid) if src == PAID else "Source view = revenue − this source's marketing cost"))
 cols = ["Stage", "Count", "From Previous", "From Lead"]
 cols += [] if filters.by_rep else ["Mkt Cost / Stage" if company else "Cost / Stage"]
 cols += ["Revenue / Stage"] + ([] if filters.by_rep else ["Profit / Stage"])

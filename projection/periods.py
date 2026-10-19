@@ -149,6 +149,18 @@ def completed_months(today: date, start: date) -> list[Month]:
     return month_range(first, current.add(-1)) if first < current else []
 
 
+def months_ago(m: Month, today: date) -> int:
+    """How many months before today's month m is (0 = this month)."""
+    t = Month.of(today)
+    return (t.year - m.year) * 12 + (t.month - m.month)
+
+
+def is_recent(months: Iterable[Month], today: date, n: int) -> bool:
+    """A lead cohort still maturing: its last month is within the last n months (setting cohort_immature_months)."""
+    months = list(months)
+    return bool(months) and n > 0 and months_ago(max(months), today) < n
+
+
 def cost_complete_through(
     months_with_costs: Iterable[Month], today: date, start: date
 ) -> tuple[Month | None, list[Month]]:

@@ -55,3 +55,13 @@ def test_quarter_elapsed_days():
     assert elapsed_days(q4, date(2026, 10, 17)) == 17
     assert elapsed_days(q4, date(2026, 9, 30)) == 0
     assert elapsed_days(q4, date(2027, 1, 5)) == 92
+
+
+def test_recent_cohorts():
+    from datetime import date
+
+    from projection.periods import Month, is_recent
+
+    today = date(2026, 10, 19)
+    assert is_recent([Month(2026, 9)], today, 2) and is_recent([Month(2026, 10)], today, 2)
+    assert not is_recent([Month(2026, 7), Month(2026, 8)], today, 2) and not is_recent([Month(2026, 9)], today, 0)

@@ -40,11 +40,16 @@ def street_matches(revenue_key: str, kpi_key: str) -> bool:
 _CONTACT_ID = re.compile(r"/contacts/(?:detail/)?([A-Za-z0-9_-]+)")
 
 
+HASHED = "lead_key:"  # marks a link already replaced by its lead_key (data.load.scrub)
+
+
 def lead_key(ghl_link: str) -> str:
     """One-way hash of the GoHighLevel contact (from its link). The link itself is never kept."""
     if not ghl_link:
         return ""
     text = str(ghl_link).strip()
+    if text.startswith(HASHED):
+        return text[len(HASHED):]
     m = _CONTACT_ID.search(text)
     ident = m.group(1) if m else text.split("?")[0].split("#")[0].rstrip("/").casefold()
     return hashlib.sha256(ident.encode("utf-8")).hexdigest()[:16]

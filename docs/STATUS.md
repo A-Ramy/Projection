@@ -28,6 +28,9 @@
 | 13 | Final README + CLAUDE.md | Claude | Done | **Done** (2026-10-18) |
 
 ## Done so far
+- 2026-10-19 owner decisions: Reload Data After works (sheet read once per window); Cohorts Flagged As Recent works
+  (Funnel/PTA "still maturing"); settings changes don't re-read the sheet; a month is cost-complete once all payroll
+  lines and the active sources that spent the month before are posted ($0 rows count) or it's 2 months old.
 - 2026-10-19 owner's batch: "Projection Base" naming; Totals revenue by exit; whole deals (nearest, spend adjusted);
   exit rows follow their source's deals in the current mix; Manual sources (no history); reorder exit rows and
   non-marketing lines; ROAS tile / per source / per exit; full-height tables; Apply Changes bar; centered tabs,

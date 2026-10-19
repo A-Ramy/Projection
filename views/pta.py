@@ -8,10 +8,10 @@ import streamlit as st
 from projection.funnel_config import KPI_STAGES
 from projection.metrics.core import keys
 from projection.metrics.pta import LEADERBOARD, leaderboard, rep_table
-from projection.periods import Month, month_range, periods_in_range
+from projection.periods import Month, is_recent, month_range, periods_in_range
 from ui import html as h
 from ui.brand import plotly_layout, series_colors
-from ui.state import get_dataset
+from ui.state import get_dataset, get_settings
 
 FMT = {"Leads": h.num, "Net Leads": h.num, "Qual. Rate": h.pct, "Appts Set": h.num, "Appts Held": h.num,
        "Offers": h.num, "Contracts Signed": h.num, "Deals": h.num, "Revenue": h.money, "Avg Deal": h.money,
@@ -20,6 +20,7 @@ FMT = {"Leads": h.num, "Net Leads": h.num, "Qual. Rate": h.pct, "Appts Set": h.n
 ds = get_dataset()
 if ds is None:
     st.stop()
+settings = get_settings()
 
 st.title("PTA")
 months = month_range(Month.of(ds.start), Month.of(ds.today))
@@ -50,8 +51,11 @@ reps = reps or all_reps[:6]
 colors = series_colors(all_reps)  # color follows the rep, not the rank or the selection
 
 if conv == "cohort":
-    h.box("Cohort view: of the leads created in a period, the share whose address later closed. Recent periods look "
-          "low because those leads haven't had time to close yet.", "warn")
+    n_recent = int(settings.get("cohort_immature_months", 2))
+    recent = [p.label for p in periods if is_recent(p.months, ds.today, n_recent)]
+    h.box("Cohort view: of the leads created in a period, the share whose address later closed."
+          + (f" <b>Still maturing:</b> {', '.join(recent)} (leads from the last {n_recent} months haven't had time "
+             "to close yet, so their Lead→Deal will keep rising)." if recent else ""), "warn" if recent else "info")
 today_note = f" · {Month.of(ds.today).label} is month-to-date" if Month.of(ds.today) in cur.months else ""
 h.heading("Leaderboard", None, f"{cur.label}{f' · arrows compare with {prev.label}' if prev else ''}{today_note}")
 rows = []

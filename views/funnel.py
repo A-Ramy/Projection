@@ -8,7 +8,7 @@ from projection.funnel_config import ADDED, ALL_CONVERSIONS, LEAKAGE, LIVE_TRANS
 from projection.metrics.core import cost_complete_months
 from projection.metrics.funnel import Filters, closed_deal_check, conversion_rates, stage_table
 from projection.metrics.pta import REP_DIMENSIONS
-from projection.periods import Month, month_range, period_of
+from projection.periods import Month, is_recent, month_range, period_of
 from ui import html as h
 from ui.state import get_dataset, get_settings
 
@@ -50,8 +50,12 @@ if not cmonths:
 if filters.by_rep:
     h.box("Rep filter on: costs aren't assigned to reps, so the cost and profit columns are hidden.", "info")
 if method == "cohort":
-    h.box("Cohort: leads created in this period, followed through every later stage. Recent periods look low because "
-          "those leads haven't had time to move yet.", "warn")
+    n_recent = int(settings.get("cohort_immature_months", 2))
+    if is_recent(pmonths, ds.today, n_recent):
+        h.box(f"<b>Recent cohort: still maturing.</b> These leads were created in the last {n_recent} months, so "
+              "many haven't had time to reach later stages yet; conversions here will keep rising.", "warn")
+    else:
+        h.box("Cohort: leads created in this period, followed through every later stage.", "info")
 
 table = stage_table(ds, pmonths, settings, filters, method).set_index("stage")
 counts = table["count"]

@@ -24,7 +24,10 @@ sync when a rule changes.
 - Quality applies only to Lead rows: Qualified, Disqualified, anything else (incl. blank) = Pending (owner, 2026-10-19).
 - Monthly grain first, then roll up (`projection/periods.py` GRAINS: month, quarter, half, year).
 - A month in progress has no costs. Cost comparisons run through the last cost-complete month and say so;
-  revenue and KPIs run to today.
+  revenue and KPIs run to today. A month is **cost-complete** once every payroll line and every active source that
+  spent the month before has a COSTS row ($0 is fine), or once it is 2 months old (owner, 2026-10-19;
+  `data.load.cost_completeness`); missing lines show on Data Quality.
+- Lead cohorts from the last `cohort_immature_months` months are flagged "still maturing" (Funnel, PTA).
 
 ## Marketing vs non-marketing
 - Non-marketing (setting `non_marketing`): ACQ Payroll, OPS Payroll, TC Payroll, DISPO Payroll, CONSULTING,
@@ -78,6 +81,8 @@ sync when a rule changes.
   frosted-glass style, Title Case UI text, light/dark toggle, no hover layout shifts. Tokens in `ui/brand.py`,
   rules in `ui/brand.css`, read-only sheet-style tables via `ui/html.py`; Streamlit's light/dark themes in
   `.streamlit/config.toml`. Escape `$` in markdown text (it starts math); HTML via `st.html` is safe.
+- The sheet is read once per `cache_ttl_minutes` (or Refresh Data) with GHL links already hashed (`data.load.scrub`);
+  a settings change rebuilds the data from that read without reading the sheet again (`ui/state.py`).
 - Every push to this branch redeploys https://tchb-projection.streamlit.app/: test before pushing.
 - Run `uv run pytest` and `uv run ruff check .` before committing. Regenerate `requirements.txt` when
   dependencies change.

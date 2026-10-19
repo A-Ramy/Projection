@@ -181,3 +181,31 @@ def test_lead_quality_is_qualified_disqualified_or_pending():
 
     assert [lead_quality(q) for q in ("Qualified", " disqualified ", "", "Pending", "Hot")] == [
         "Qualified", "Disqualified", "Pending", "Pending", "Pending"]
+
+
+def test_month_costs_complete_only_when_expected_lines_are_posted():
+    import pandas as pd
+
+    from projection.data.load import cost_completeness
+    from projection.periods import Month
+
+    costs = pd.DataFrame({"month": ["2026-08", "2026-08", "2026-09", "2026-07", "2026-07"],
+                          "source": ["PPC A", "ACQ Payroll", "ACQ Payroll", "PPC A", "ACQ Payroll"],
+                          "cost": [100.0, 50.0, 50.0, 100.0, 50.0]})
+    s = {"active_sources": ["PPC A"], "payroll": ["ACQ Payroll"]}
+    done, missing = cost_completeness(costs, s, date(2026, 10, 19))
+    assert Month(2026, 9) not in done and missing == {Month(2026, 9): ["PPC A"]}  # payroll in, PPC A not yet
+    assert {Month(2026, 7), Month(2026, 8)} <= done
+    done, _ = cost_completeness(costs, s, date(2026, 11, 2))  # 2 months old: counts with what was posted
+    assert Month(2026, 9) in done
+
+
+def test_cached_raw_sheet_holds_no_links():
+    from projection.data.keys import lead_key
+    from projection.data.load import scrub
+    from projection.sheets import RawSheet
+
+    raw = RawSheet(values={"KPIS_LINK": [["GHL Link"], ["https://app.example.com/contacts/detail/abc123"], []]},
+                   timezone="UTC")
+    out = scrub(raw).values["KPIS_LINK"]
+    assert "http" not in str(out) and lead_key(out[1][0]) == lead_key(raw.values["KPIS_LINK"][1][0])

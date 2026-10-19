@@ -3,7 +3,7 @@
 COSTS (month totals, Jan–Sep complete; Oct in progress):
     PPC A        5,000/mo Q1, 6,000/mo Q2, 10,000/mo Q3   (best quarter 30,000)
     SEO B        1,000/mo Q3
-    Mailer C     2,000 in Aug (no leads)                   -> "Other marketing (unprojected)" in Q3
+    Mailer C     2,000 in Aug, a $0 row in Sep (no leads)  -> "Other marketing (unprojected)" in Q3
     ACQ Payroll  20,000/mo Jan–Sep                         (non-marketing)
 REVENUES (Q3 total 415,000, 24 deals):
     PPC A    20 deals: 14 Wholesale × 15,000, 4 Novation × 25,000, F&F 40,000 and −5,000  (Aug/Sep)
@@ -50,8 +50,8 @@ def _costs() -> list[list]:
         rows.append([_month_end(2026, m), "ACQ Payroll", 20000])
         if m >= 7:
             rows.append([_month_end(2026, m), "SEO B", 1000])
-        if m == 8:
-            rows.append([_month_end(2026, m), "Mailer C", 2000])
+        if m in (8, 9):  # Sep: $0 posted, so September's costs count as complete
+            rows.append([_month_end(2026, m), "Mailer C", 2000 if m == 8 else 0])
     return rows
 
 

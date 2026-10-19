@@ -10,7 +10,7 @@ from projection.data.schema import KNOWN_EXITS
 from projection.suggest.lookback import LOOKBACKS
 from ui import html as h
 from ui.brand import sortable_style
-from ui.state import get_dataset, get_settings, get_store, refresh
+from ui.state import get_dataset, get_settings, get_store
 
 st.title("Settings")
 h.status("Stored in the app's own database, never in the Google Sheet. Changes apply to everyone.")
@@ -46,7 +46,9 @@ with st.form("settings"), st.container(key="card-settings"):
     c = st.columns(3)
     immature = c[0].number_input("Cohorts Flagged As Recent (Months)", min_value=0,
                                  value=int(s["cohort_immature_months"]))
-    ttl = c[1].number_input("Reload Data After (Minutes)", min_value=1, value=int(s["cache_ttl_minutes"]))
+    ttl = c[1].number_input("Reload Data After (Minutes)", min_value=1, value=int(s["cache_ttl_minutes"]),
+                            help="How long the app keeps the sheet's data before reading it again. Refresh Data "
+                                 "(sidebar) reloads at once.")
     saved = st.form_submit_button("Save Settings", type="primary", icon=":material/save:")
 
 
@@ -67,7 +69,6 @@ if saved:
     for k, v in new.items():
         if v != s.get(k):
             store.set_setting(k, v, by=who)
-    refresh()  # the start date and classifications change what's loaded
     st.toast("Settings saved", icon=":material/check:")
     st.rerun()
 
@@ -85,7 +86,6 @@ with st.container(key="card-order"):
             "Use The Built-In List And Order", icon=":material/restart_alt:",
             help=", ".join(DEFAULT_SETTINGS["active_sources"])):
         get_store().set_setting("active_sources", DEFAULT_SETTINGS["active_sources"], by=user_email())
-        refresh()
         st.rerun()
 
 with st.expander("Defaults", icon=":material/restart_alt:"):

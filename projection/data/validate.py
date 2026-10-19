@@ -81,6 +81,15 @@ def validate(ds: Dataset, settings: dict) -> list[Issue]:
                              detail="Cost comparisons stop at the last month with costs posted.",
                              count=len(missing), examples=[m.label for m in missing]))
 
+    if ds.missing_cost_lines:
+        out.append(Issue("warning", TAB_COSTS, "missing_cost_lines",
+                         "COSTS: months held back because an expected cost line isn't posted yet",
+                         detail="A month's costs count once every payroll line and every active source that spent "
+                                "the month before has a row (post $0 if there was no charge), or once the month is "
+                                "2 months old. Until then cost comparisons stop before it.",
+                         count=sum(len(v) for v in ds.missing_cost_lines.values()),
+                         examples=[f"{m.label}: {', '.join(v)}" for m, v in sorted(ds.missing_cost_lines.items())]))
+
     # --- names: stray spaces and near-duplicate spellings, within and across tabs
     names: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
     spaced: list[str] = []

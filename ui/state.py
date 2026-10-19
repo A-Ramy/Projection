@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import json
 import os
+import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
 from projection.config import Secrets, load_secrets
-from projection.data.load import Dataset, build_dataset, load_dataset
+from projection.data.load import Dataset, build_dataset, scrub
+from projection.sheets import RawSheet, fetch_raw
 from projection.storage import Store
-
-CACHE_TTL_SECONDS = 600  # matches DEFAULT_SETTINGS["cache_ttl_minutes"]
 
 
 def demo_mode() -> bool:
@@ -33,14 +35,33 @@ def get_settings() -> dict:
     return get_store().get_settings()
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner="Reading the Projection sheet…")
-def _load(sheet_id: str, settings_json: str) -> Dataset:
-    settings = json.loads(settings_json)
+@st.cache_data(max_entries=2, show_spinner="Reading the Projection sheet…")
+def _raw(sheet_id: str, window: int) -> tuple[RawSheet, datetime]:
+    """One read of the sheet per reload window (setting cache_ttl_minutes), GHL links already hashed."""
     if demo_mode():
-        from tests.metrics_fixture import TODAY, raw_sheet
+        from tests.metrics_fixture import raw_sheet
 
-        return build_dataset(raw_sheet(), settings, today=TODAY)
-    return load_dataset(get_secrets(), settings)
+        return raw_sheet(), datetime.now()
+    raw = scrub(fetch_raw(get_secrets()))
+    return raw, datetime.now(ZoneInfo(raw.timezone or "America/New_York"))
+
+
+@st.cache_data(max_entries=4, show_spinner="Preparing the data…")
+def _build(sheet_id: str, window: int, settings_json: str) -> Dataset:
+    """The cleaned data for these settings; a settings change rebuilds it without reading the sheet again."""
+    raw, fetched = _raw(sheet_id, window)
+    today = None
+    if demo_mode():
+        from tests.metrics_fixture import TODAY
+
+        today = TODAY
+    return build_dataset(raw, json.loads(settings_json), today=today, fetched_at=fetched)
+
+
+def _load(sheet_id: str, settings: dict) -> Dataset:
+    minutes = max(1, int(settings.get("cache_ttl_minutes", 10)))
+    window = int(time.time() // (minutes * 60))
+    return _build(sheet_id, window, json.dumps(settings, sort_keys=True))
 
 
 def get_dataset() -> Dataset | None:
@@ -50,7 +71,7 @@ def get_dataset() -> Dataset | None:
         return None
     settings = get_settings()
     try:
-        return _load(secrets.sheet_id, json.dumps(settings, sort_keys=True))
+        return _load(secrets.sheet_id, settings)
     except Exception as exc:  # show a usable message, never the key
         email = (secrets.service_account_info or {}).get("client_email", "the service account")
         text = str(exc)
@@ -66,4 +87,5 @@ def get_dataset() -> Dataset | None:
 
 
 def refresh() -> None:
-    _load.clear()
+    _raw.clear()
+    _build.clear()

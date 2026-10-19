@@ -1,14 +1,16 @@
-"""Projecting a quarter from its backbone: the actuals of the quarter before (or a longer window you pick).
+"""Projecting a quarter from its projection base: the actuals of the quarter before (or a longer window you pick).
 
-Every source starts pre-filled from the backbone. For each source you type ONE number and the rest follows from
-the backbone's economics for that source (cost per deal, average deal size):
-    spend   -> deals = spend ÷ cost per deal, revenue = deals × avg deal
-    revenue -> deals = revenue ÷ avg deal,    spend = deals × cost per deal
-    deals   -> spend = deals × cost per deal, revenue = deals × avg deal
-    exits   -> deals = the sum of the source's exit rows (the default for no-cost sources and Follow Up)
-The deals are then placed on exit rows (Source × Exit, typed by you); any difference shows as not placed.
-A source's projected revenue = its exit rows' revenue + deals not yet placed × its avg deal (a typed revenue counts
-as typed); projected cost is the derived spend.
+Every source starts pre-filled from the base. For each source you type ONE number and the rest follows from the
+base's economics for that source (cost per deal, average deal size). Deals are whole: a typed spend or revenue is
+rounded to the nearest whole deal and the spend is then deals × cost per deal (owner, 2026-10-19):
+    spend   -> deals = round(spend ÷ cost per deal)
+    revenue -> deals = round(revenue ÷ avg deal)
+    deals   -> as typed (whole)
+    exits   -> deals = the sum of the source's exit rows (after you edit an exit row)
+    manual  -> spend, deals and revenue each typed (sources with no history)
+then spend = deals × cost per deal. The deals are placed on the source's exit rows (Source × Exit) in their current
+mix (largest remainder, so 4 Novation : 12 Wholesale + 1 deal = 4 : 13); rows with no deals take the base's mix.
+A source's projected revenue = its exit rows' revenue (+ deals that have no exit row × its avg deal).
 
 Sources: the active sources (setting active_sources, in that order), each projected on its own (no-cost ones such
 as SELF GEN and Referral by revenue or deals), and Follow Up: one group for every other source.
@@ -16,6 +18,7 @@ as SELF GEN and Referral by revenue or deals), and Follow Up: one group for ever
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from projection.data.load import Dataset
@@ -117,40 +120,68 @@ class SourceRow:
         return None if self.deals is None else self.deals - self.allocated_deals
 
     @property
+    def roas(self) -> float | None:
+        return ratio(self.revenue, self.spend) if self.revenue is not None and self.spend else None
+
+    @property
     def notes(self) -> list[str]:
         out = []
+        d = self.driver
+        if d.typed and d.kind in ("spend", "revenue") and self.deals is not None:
+            out.append(f"Typed {d.kind} ${d.value:,.0f} → {self.deals:,.0f} whole deals")
         if self.unit.fallback and self.driver.typed:
-            out.append("Cost per deal and avg deal from the longer window (no deals in the backbone)")
+            out.append("Cost per deal and avg deal from the longer window (no deals in the base)")
         elif self.unit.fallback:
-            out.append("No deals in the backbone: type its spend or deals to use the longer window's cost per deal")
+            out.append("No deals in the base: type its spend or deals to use the longer window's cost per deal")
         elif self.deals is None:
-            out.append("No cost per deal or avg deal yet: type deals on its exit rows")
+            out.append("No history: tick Manual and type its spend, deals and revenue")
         if self.unallocated is not None and abs(self.unallocated) >= 0.05:
-            out.append(f"{self.unallocated:+.1f} deals not placed on exit rows")
+            out.append(f"{self.unallocated:+,.0f} deals with no exit row (add one in table 2)")
         return out
+
+
+def whole(x: float) -> int:
+    """Nearest whole deal (halves round up), never below 0."""
+    return max(0, math.floor(x + 0.5 + 1e-9))
+
+
+def spread(total: int, weights: list[float]) -> list[int]:
+    """`total` whole deals split in proportion to `weights` (largest remainder; equal split if all weights are 0)."""
+    if not weights:
+        return []
+    if sum(weights) <= 0:
+        weights = [1.0] * len(weights)
+    s = sum(weights)
+    raw = [total * w / s for w in weights]
+    out = [math.floor(x + 1e-9) for x in raw]
+    for i in sorted(range(len(raw)), key=lambda i: (out[i] - raw[i], -weights[i]))[: max(0, total - sum(out))]:
+        out[i] += 1
+    return out
 
 
 def derive(driver: Driver, unit: Unit, allocated: float,
            allocated_revenue: float = 0.0) -> tuple[float | None, float | None, float | None]:
-    """(spend, deals, revenue) for a source from its driver, its backbone and its exit rows."""
+    """(spend, deals, revenue) for a source from its driver, its base and its exit rows."""
+    if driver.kind == "manual":
+        return driver.spend, driver.deals, driver.revenue
     v, cpd, avg = driver.value, unit.cpd, unit.avg
     if unit.fallback and not driver.typed:
-        cpd = avg = None  # the pre-filled backbone repeats what happened: spend with no deals
+        cpd = avg = None  # the pre-filled base repeats what happened: spend with no deals
     if driver.kind == "spend":
-        deals = v / cpd if cpd else None
+        deals = whole(v / cpd) if cpd else None
     elif driver.kind == "revenue":
-        deals = v / avg if avg else None
+        deals = whole(v / avg) if avg else None
     elif driver.kind == "deals":
-        deals = v
+        deals = whole(v)
     else:
         deals = allocated
-    spend = v if driver.kind == "spend" else (deals * cpd if deals is not None and cpd is not None else None)
-    if driver.kind == "revenue":
-        revenue = v
-    elif deals is None:
-        revenue = None
-    else:  # placed deals at their exit's avg, the rest at the source's avg
-        revenue = allocated_revenue + (deals - allocated) * (avg or 0)
+    if deals is None:
+        spend = v if driver.kind == "spend" else None
+        revenue = v if driver.kind == "revenue" else None
+        return spend, None, revenue
+    spend = deals * cpd if cpd is not None else None
+    # placed deals at their exit's avg, any without an exit row at the source's avg
+    revenue = allocated_revenue + (deals - allocated) * (avg or 0)
     return spend, deals, revenue
 
 
@@ -180,32 +211,109 @@ def sync_costs(p: QuarterProjection, bb: Backbone, settings: dict) -> None:
         c.origin = "manual"
 
 
+def place(p: QuarterProjection, source: str, deals: int, unit: Unit | None, avg: float | None = None) -> None:
+    """Put a source's whole deals on its exit rows in their current mix; rows with no deals yet take the base's mix
+    (adding the rows it needs). A source with no exit rows and no base mix keeps its deals unplaced."""
+    lines = [r for r in p.revenue if r.source == source]
+    weights = [r.p_deals for r in lines]
+    if not sum(weights) and unit is not None and unit.exits:
+        have = {r.exit for r in lines}
+        for exit_, (_, a) in unit.exits.items():
+            if exit_ not in have:
+                line = RevenueLine(block=block_of(exit_), source=source, exit=exit_, p_avg=round(a or 0, 2))
+                p.revenue.append(line)
+                lines.append(line)
+        weights = [unit.exits.get(r.exit, (0.0, None))[0] for r in lines]
+    for line, n in zip(lines, spread(deals, weights), strict=True):
+        line.p_deals = float(n)
+        if avg is not None:
+            line.p_avg = round(avg, 2)
+    _sort(p)
+
+
+def link(p: QuarterProjection, source: str, bb: Backbone) -> None:
+    """After a source's driver changes: its exit rows follow its new number of deals."""
+    d = p.drivers.get(source)
+    if d is None or d.kind == "exits":
+        return
+    unit = bb.units.get(source)
+    if d.kind == "manual":
+        place(p, source, whole(d.deals), unit, avg=d.revenue / d.deals if d.deals else None)
+        return
+    lines = [r for r in p.revenue if r.source == source]
+    _, deals, _ = derive(d, unit or Unit(source), sum(r.p_deals for r in lines), sum(r.p_revenue for r in lines))
+    if deals is not None:
+        place(p, source, int(deals), unit)
+
+
 def set_driver(p: QuarterProjection, source: str, kind: str, value: float, bb: Backbone, settings: dict) -> None:
     p.drivers[source] = Driver(kind=kind, value=float(value), typed=True)
+    link(p, source, bb)
+    sync_costs(p, bb, settings)
+
+
+def set_manual(p: QuarterProjection, source: str, bb: Backbone, settings: dict, spend: float | None = None,
+               deals: float | None = None, revenue: float | None = None) -> None:
+    """Type a source's spend, deals and revenue freely (nothing is worked out). Turning it on starts from what the
+    source shows now; avg deal on its exit rows = revenue ÷ deals."""
+    d = p.drivers.get(source)
+    if d is None or d.kind != "manual":
+        row = next((r for r in source_rows(p, bb, settings) if r.source == source), None)
+        d = Driver(kind="manual", typed=True, spend=(row.spend or 0) if row else 0,
+                   deals=(row.deals or 0) if row else 0, revenue=(row.revenue or 0) if row else 0)
+    if spend is not None:
+        d.spend = float(spend)
+    if deals is not None:
+        d.deals = float(whole(deals))
+    if revenue is not None:
+        d.revenue = float(revenue)
+    p.drivers[source] = d
+    link(p, source, bb)
+    sync_costs(p, bb, settings)
+
+
+def edit_exit(p: QuarterProjection, i: int, bb: Backbone, settings: dict, deals: float | None = None,
+              avg: float | None = None, revenue: float | None = None) -> None:
+    """An exit row edit. Changing its deals makes the exit rows set the source's deals (and so its spend)."""
+    line = p.revenue[i]
+    if avg is not None:
+        line.p_avg = float(avg)
+    if deals is not None:
+        line.p_deals = float(whole(deals))
+    if revenue is not None and line.p_avg:
+        line.p_deals = float(whole(revenue / line.p_avg))
+    d = p.drivers.get(line.source)
+    lines = [r for r in p.revenue if r.source == line.source]
+    if d is not None and d.kind == "manual":
+        d.deals = sum(r.p_deals for r in lines)
+        d.revenue = sum(r.p_revenue for r in lines)
+    elif deals is not None or revenue is not None:
+        p.drivers[line.source] = Driver(kind="exits", typed=True)
     sync_costs(p, bb, settings)
 
 
 def split_by_mix(p: QuarterProjection, source: str, bb: Backbone, settings: dict) -> None:
-    """Spread a source's derived deals over exit rows in its backbone mix (adds the rows it needs)."""
+    """Re-place a source's deals over its exit rows in the base's mix (adds the rows it needs)."""
     row = next((r for r in source_rows(p, bb, settings) if r.source == source), None)
     if row is None or row.deals is None or not row.unit.exits:
         return
-    total = sum(d for d, _ in row.unit.exits.values()) or 1
-    have = {(r.block, r.exit): r for r in p.revenue if r.source == source}
-    for exit_, (d, avg) in row.unit.exits.items():
-        key = (block_of(exit_), exit_)
-        line = have.get(key)
-        if line is None:
-            line = RevenueLine(block=key[0], source=source, exit=exit_, p_avg=round(avg or 0, 2))
-            p.revenue.append(line)
-        line.p_deals = round(row.deals * d / total, 2)
-    _sort(p)
+    for r in p.revenue:
+        if r.source == source:
+            r.p_deals = 0.0
+    place(p, source, whole(row.deals), row.unit)
+    sync_costs(p, bb, settings)
 
 
 def _sort(p: QuarterProjection) -> None:
+    """Exit rows grouped by source in the sources' order (Follow Up last); within a source the order is kept."""
     order = {c.source: i for i, c in enumerate(p.marketing)}
-    blocks = {b: i for i, b in enumerate(BLOCKS)}
-    p.revenue.sort(key=lambda r: (r.source == FOLLOW_UP, order.get(r.source, 999), blocks[r.block], r.exit))
+    p.revenue.sort(key=lambda r: (r.source == FOLLOW_UP, order.get(r.source, 999)))
+
+
+def reorder_exits(p: QuarterProjection, order: list[int]) -> None:
+    """Exit rows in this order (indexes into p.revenue); they stay grouped under their source."""
+    p.revenue = [p.revenue[i] for i in order] + [r for i, r in enumerate(p.revenue) if i not in set(order)]
+    _sort(p)
 
 
 def prefill(ds: Dataset, period: Period, settings: dict, base: QuarterProjection) -> QuarterProjection:
@@ -232,10 +340,15 @@ def prefill(ds: Dataset, period: Period, settings: dict, base: QuarterProjection
             line.inputs = {"deals": 0, "revenue": 0.0}
         line.inputs["deals"] += len(g)
         line.inputs["revenue"] += float(g["revenue"].sum())
-    for line in p.revenue:
-        line.p_deals = round(line.inputs["deals"] / q, 2)
-        line.p_avg = round(line.inputs["revenue"] / line.inputs["deals"], 2)
-        line.inputs = None
+    blocks = {b: i for i, b in enumerate(BLOCKS)}
+    p.revenue.sort(key=lambda r: (blocks[r.block], r.exit))
+    for src in dict.fromkeys(r.source for r in p.revenue):  # whole deals per source, in the base's mix
+        lines = [r for r in p.revenue if r.source == src]
+        raw = [r.inputs["deals"] / q for r in lines]
+        for line, n in zip(lines, spread(whole(sum(raw)), raw), strict=True):
+            line.p_deals = float(n)
+            line.p_avg = round(line.inputs["revenue"] / line.inputs["deals"], 2)
+            line.inputs = None
     _sort(p)
     nm = in_months(ds.costs, months)
     for name in settings.get("non_marketing", []):
@@ -271,7 +384,8 @@ def reorder(p: QuarterProjection, order: list[str]) -> None:
 def use_plan(p: QuarterProjection, plan, bb: Backbone, settings: dict) -> None:
     """A profit-target plan becomes each planned source's deals driver (exit rows stay yours to place)."""
     for x in plan.lines:
-        p.drivers[x.source] = Driver(kind="deals", value=round(x.deals, 2), typed=True)
+        p.drivers[x.source] = Driver(kind="deals", value=whole(x.deals), typed=True)
+        link(p, x.source, bb)
     sync_costs(p, bb, settings)
 
 

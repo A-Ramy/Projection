@@ -24,6 +24,7 @@ src_names = sorted((all_sources - set(s["non_marketing"]) - {""}) | set(s["activ
 
 with st.form("settings"), st.container(key="card-settings"):
     start = st.date_input("Start Date", value=date.fromisoformat(s["start_date"]), format="YYYY-MM-DD",
+                          max_value=date.today(),
                           help="No calculation, lookback or suggestion uses data before this date.")
     excl = st.multiselect("Revenue Base For P.% And A.% Excludes", KNOWN_EXITS, default=s["pct_base_excluded_exits"],
                           help="Both P.% and A.% divide by total revenue minus these exit strategies.")

@@ -36,7 +36,7 @@ input,textarea,[data-testid="stDataFrame"]{text-transform:none}
 /* floating tab capsule (page links) */
 .st-key-tabs{display:inline-flex!important;width:auto!important;flex-direction:row!important;gap:4px!important;padding:5px;border-radius:999px;
   background:var(--glass);border:1px solid var(--glass-border);box-shadow:var(--glass-hi),var(--glass-shadow);
-  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);margin-bottom:.4rem}
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);margin:0 auto .4rem;align-self:center}
 .st-key-tabs [data-testid="stElementContainer"]{width:auto!important}
 .st-key-tabs [data-testid="stPageLink-NavLink"]{border-radius:999px;padding:6px 22px;font-family:var(--display);font-size:17px;
   transition:background .3s var(--ease),box-shadow .3s var(--ease),transform .15s var(--ease)}
@@ -86,7 +86,7 @@ button[data-testid$="Active"]{background:var(--thumb)!important;color:var(--head
 .status{font-size:13.5px;color:var(--muted);margin:2px 0 8px}
 
 /* tiles */
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:4px 0 8px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:4px 0 8px}
 .tile{background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-border);
   box-shadow:var(--glass-hi),var(--glass-shadow);border-radius:22px;padding:12px 16px;display:flex;flex-direction:column;gap:5px;min-width:0;
   transition:transform .3s var(--ease),box-shadow .3s var(--ease)}
@@ -159,3 +159,19 @@ table.t{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeri
 
 @media (max-width:900px){.frow{grid-template-columns:120px minmax(0,1fr) 92px}.dq .it{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* Apply Changes bar: pending table edits, pinned to the bottom of the screen */
+.st-key-applybar {
+  position: fixed; bottom: 20px; right: 28px; z-index: 999990;
+  width: auto !important; max-width: min(760px, calc(100vw - 32px)); padding: 10px 14px 10px 20px; gap: 14px;
+  background: var(--glass-strong); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--glass-border); border-radius: 18px; box-shadow: var(--lift), var(--glass-hi);
+}
+.st-key-applybar .applybar-text { color: var(--body); font-size: 14px; white-space: nowrap; }
+.st-key-applybar .applybar-text b { color: var(--heading); }
+
+/* sidebar: everything fits, so no scrollbar */
+[data-testid="stSidebarContent"],[data-testid="stSidebarUserContent"]{scrollbar-width:none;-ms-overflow-style:none}
+[data-testid="stSidebarContent"]::-webkit-scrollbar,[data-testid="stSidebarUserContent"]::-webkit-scrollbar{display:none}
+/* the page tabs sit in the middle */
+[data-testid="stLayoutWrapper"]:has(> .st-key-tabs){align-self:center}

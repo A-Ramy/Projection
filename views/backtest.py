@@ -29,8 +29,10 @@ c = st.columns([1.6, 2.4, 3], vertical_alignment="bottom")
 by_key = {p.key: p for p in done}
 target = by_key[c[0].segmented_control("Quarter", list(by_key), default=done[0].key, key="bt_quarter",
                                        format_func=lambda k: by_key[k].label) or done[0].key]
-lookback = c[1].segmented_control("Learn From", [k for k in LOOKBACKS if k != "custom"], default="last_2_quarters",
-                                  format_func=LOOKBACKS.get, key="bt_lookback") or "last_2_quarters"
+lb_default = settings.get("lookback_default", "last_quarter")
+lb_default = lb_default if lb_default != "custom" else "last_quarter"
+lookback = c[1].segmented_control("Learn From", [k for k in LOOKBACKS if k != "custom"], default=lb_default,
+                                  format_func=LOOKBACKS.get, key="bt_lookback") or lb_default
 basis = c[2].segmented_control("Budget Test", ["pred", "act"], default="pred",
                                format_func=lambda b: "Using Predicted Deals" if b == "pred"
                                else "Using The Quarter's Actual Deals") or "pred"

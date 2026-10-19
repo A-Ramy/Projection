@@ -60,19 +60,61 @@ def test_backbone_units(ds, p):
     fu = r[FOLLOW_UP]
     assert fu.kind == FOLLOW_UP_KIND and fu.unit.avg == 30000 and fu.spend == 0
     m = r["Mailer C"]  # spent but never closed a deal, even in the longer window
-    assert m.deals is None and m.spend == 2000 and any("type deals" in n for n in m.notes)
+    assert m.deals is None and m.spend == 2000 and any("tick Manual" in n for n in m.notes)
 
 
-def test_spend_driver_then_split_by_mix(ds, p):
+def test_spend_driver_places_whole_deals_on_the_exit_rows(ds, p):
     bb = backbone(ds, p, Q4)
     set_driver(p, "PPC A", "spend", 45000, bb, S)
     a = rows(ds, p)["PPC A"]
-    assert (a.deals, a.revenue, a.unallocated) == (30, 517500, 10)
+    assert (a.deals, a.revenue, a.unallocated, a.spend) == (30, 517500, 0, 45000)
     assert next(c for c in p.marketing if c.source == "PPC A").p_cost == 45000
-    split_by_mix(p, "PPC A", bb, S)
     exits = {r.exit: r.p_deals for r in p.revenue if r.source == "PPC A"}
-    assert exits == {"Wholesale": 21, "Novation Deal": 6, "Fix & Flip": 3}
-    assert rows(ds, p)["PPC A"].unallocated == 0
+    assert exits == {"Novation Deal": 6, "Wholesale": 21, "Fix & Flip": 3}  # 4 : 14 : 2 kept
+    set_driver(p, "PPC A", "spend", 46000, bb, S)  # 30.67 deals -> 31, spend = 31 × $1,500
+    a = rows(ds, p)["PPC A"]
+    assert (a.deals, a.spend) == (31, 46500)
+    assert {r.exit: r.p_deals for r in p.revenue if r.source == "PPC A"} == {
+        "Novation Deal": 6, "Wholesale": 22, "Fix & Flip": 3}
+    split_by_mix(p, "PPC A", bb, S)
+    assert sum(r.p_deals for r in p.revenue if r.source == "PPC A") == 31
+
+
+def test_whole_deals_and_spread():
+    from projection.plan import spread, whole
+
+    assert (whole(23.28), whole(23.5), whole(-2)) == (23, 24, 0)
+    assert spread(17, [4, 12]) == [4, 13]  # the owner's 3:1 example: the extra deal is a Wholesale
+    assert spread(5, [0, 0]) == [3, 2] and spread(0, [4, 12]) == [0, 0]
+
+
+def test_editing_an_exit_row_sets_the_source(ds, p):
+    from projection.plan import edit_exit
+
+    bb = backbone(ds, p, Q4)
+    i = next(i for i, r in enumerate(p.revenue) if (r.source, r.exit) == ("PPC A", "Wholesale"))
+    edit_exit(p, i, bb, S, deals=15.6)  # 16 whole
+    a = rows(ds, p)["PPC A"]
+    assert p.drivers["PPC A"].kind == "exits" and (a.deals, a.spend) == (22, 33000)
+
+
+def test_manual_source_types_all_three(ds, p):
+    from projection.plan import edit_exit, set_manual
+
+    bb = backbone(ds, p, Q4)
+    set_manual(p, "Mailer C", bb, S, spend=10000, deals=4, revenue=60000)
+    m = rows(ds, p)["Mailer C"]
+    assert (m.spend, m.deals, m.revenue) == (10000, 4, 60000) and m.unallocated == 4  # no exit rows yet
+    from projection.planning import add_revenue_line
+
+    p = add_revenue_line(p, "main", "Mailer C", "Wholesale")
+    set_manual(p, "Mailer C", bb, S, deals=4)
+    line = next(r for r in p.revenue if r.source == "Mailer C")
+    assert (line.p_deals, line.p_avg) == (4, 15000)  # avg deal = revenue ÷ deals
+    edit_exit(p, p.revenue.index(line), bb, S, deals=5)
+    m = rows(ds, p)["Mailer C"]
+    assert (m.deals, m.revenue, m.spend) == (5, 75000, 10000)
+    assert next(c for c in p.marketing if c.source == "Mailer C").p_cost == 10000
 
 
 def test_revenue_and_deals_drivers_work_back_the_spend(ds, p):
@@ -84,10 +126,9 @@ def test_revenue_and_deals_drivers_work_back_the_spend(ds, p):
     assert rows(ds, p)["PPC A"].spend == 37500  # the required 25 × $1,500 case
     set_driver(p, FOLLOW_UP, "deals", 3, bb, S)
     fu = rows(ds, p)[FOLLOW_UP]
-    assert (fu.deals, fu.revenue, fu.unallocated, fu.spend) == (3, 90000, 2, 0)
-    t = totals(p, source_rows(p, bb, S))
-    # unplaced deals already count: PPC A 5 × $17,250 (25 set, 20 placed) + Follow Up 2 × $30,000
-    assert t["not_placed"] == 5 * 17250 + 2 * 30000
+    assert (fu.deals, fu.revenue, fu.unallocated, fu.spend) == (3, 90000, 0, 0)
+    assert {r.exit: r.p_deals for r in p.revenue if r.source == FOLLOW_UP} == {"Fix & Flip": 3}
+    assert totals(p, source_rows(p, bb, S))["not_placed"] == 0
 
 
 def test_exits_driver_follows_the_rows(ds, p):
@@ -140,11 +181,12 @@ def test_old_save_keeps_its_spend_and_missing_active_sources_can_be_added(ds):
     old = QuarterProjection(quarter_id="2026-Q4", marketing=[CostLine(source="SEO B", p_cost=4000),
                                                              CostLine(source="Hand Typed")])
     r = rows(ds, old)
-    assert r["SEO B"].spend == 4000 and r["SEO B"].driver.kind == "spend"  # no drivers saved: keeps its spend
+    # no drivers saved: its spend is the driver (1.33 deals -> 1 whole deal at $3,000)
+    assert r["SEO B"].spend == 3000 and r["SEO B"].deals == 1 and r["SEO B"].driver.kind == "spend"
     added = add_active_sources(old, ds, Q4, S)
     assert added == ["PPC A", "Mailer C", "SELF GEN"]
     assert [c.source for c in old.marketing] == ["PPC A", "SEO B", "Mailer C", "SELF GEN", "Hand Typed"]
-    assert next(c for c in old.marketing if c.source == "SEO B").p_cost == 4000  # what you typed stays
+    assert next(c for c in old.marketing if c.source == "SEO B").p_cost == 3000  # 1 whole deal
     assert next(c for c in old.marketing if c.source == "PPC A").p_cost == 30000
 
 

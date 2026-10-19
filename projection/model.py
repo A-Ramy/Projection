@@ -14,7 +14,7 @@ FOLLOW_UP = "Follow Up"
 Block = Literal["main", "fix_flip", "buy_hold"]
 BLOCKS: tuple[Block, ...] = ("main", "fix_flip", "buy_hold")
 Origin = Literal["manual", "accepted_suggestion", "override"]
-DriverKind = Literal["spend", "revenue", "deals", "exits"]
+DriverKind = Literal["spend", "revenue", "deals", "exits", "manual"]
 
 
 class CostLine(BaseModel):
@@ -41,11 +41,15 @@ class RevenueLine(BaseModel):
 class Driver(BaseModel):
     """The number typed for a source; the rest of the source is worked out from the backbone's economics.
     spend -> deals = spend ÷ cost per deal; revenue -> deals = revenue ÷ avg deal; deals -> as typed;
-    exits -> deals = the sum of the source's exit rows."""
+    exits -> deals = the sum of the source's exit rows; manual -> spend, deals and revenue each typed (a source with
+    no history). Deals are whole: a typed spend or revenue is rounded to the nearest whole deal."""
 
     kind: DriverKind = "exits"
     value: float = 0.0
-    typed: bool = False  # typed by you (a pre-filled backbone value is not): only typed numbers use the fallback
+    typed: bool = False  # typed by you (a pre-filled base value is not): only typed numbers use the fallback
+    spend: float = 0.0  # manual only
+    deals: float = 0.0
+    revenue: float = 0.0
 
 
 class QuarterProjection(BaseModel):

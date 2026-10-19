@@ -104,6 +104,8 @@ def cohort_reach(ds: Dataset, months: Iterable[Month], filters: Filters = ALL) -
     ev = ev[ev["lead_key"] != ""]
     leads = ev[(ev["stage"] == LEAD_KPI) & ev["month"].isin(keys(months))]
     first = leads.groupby("lead_key")["date"].min()
+    if first.empty:  # no leads in the months (e.g. no completed month yet)
+        return pd.DataFrame(False, index=first.index, columns=STAGES)
     later = ev[ev["lead_key"].isin(first.index)]
     later = later[later["date"] >= later["lead_key"].map(first)]
     reach = later.groupby(["lead_key", "stage"]).size().unstack(fill_value=0) > 0
@@ -130,13 +132,19 @@ def conversion_rates(ds: Dataset, months: Iterable[Month], filters: Filters = AL
     return pd.DataFrame(rows)
 
 
+CLOSED_DEAL = "Closed Deal"
+
+
 def stage_table(ds: Dataset, period: Period | list[Month], settings: dict,
                 filters: Filters = ALL, method: str = "period") -> pd.DataFrame:
     """Count, conversion from the previous stage(s) and from Lead, and money per stage.
 
     method "period" counts events dated in the months; "cohort" counts the months' leads that reached each stage.
-    Cost and profit per stage use the cost-complete months only (counts and revenue from the same months);
-    revenue per stage uses all months. Cost is hidden under a rep filter (costs aren't attributable to reps).
+    Closed Deal money is per REVENUES deal (every row is a deal), not per KPI Closed Deal.
+    Revenue, cost and profit per stage use the cost-complete months only (counts from the same months), so
+    profit = revenue − cost on every row; with no cost-complete month (or under a rep filter, where costs aren't
+    attributable) revenue per stage uses all the months. In cohort mode revenue and profit per stage are not shown:
+    the period's revenue isn't the cohort's revenue.
     """
     months = list(period.months) if isinstance(period, Period) else list(period)
     done = set(cost_complete_months(ds))
@@ -154,22 +162,32 @@ def stage_table(ds: Dataset, period: Period | list[Month], settings: dict,
     all_cost = costs["cost"].sum()
     company = filters.sources is None and not filters.by_rep
 
+    with_costs = bool(cmonths) and not filters.by_rep
+    deals = len(filters.apply(in_months(ds.revenues, months)))
+    cdeals = len(filters.apply(in_months(ds.revenues, cmonths)))
     rows = []
     for s in STAGES:
         n, cn = int(counts[s]), int(ccounts[s])
+        if s == CLOSED_DEAL and method == "period":
+            n_money, cn_money = deals, cdeals
+        else:
+            n_money, cn_money = n, cn
         prev = sum(int(counts[p]) for p in PREVIOUS.get(s, []))
         row = {"stage": s, "path": "main" if s in MAIN_PATH else "leakage", "count": n,
                "previous": " + ".join(PREVIOUS.get(s, [])),
                "from_previous": ratio(n, prev) if s in PREVIOUS else None,
                "from_lead": ratio(n, counts[LEAD_KPI]),
-               "revenue_per": ratio(rev, n),
-               "cost_per": None if filters.by_rep else ratio(mkt_cost, cn),
-               "profit_per": None if filters.by_rep else ratio(crev - mkt_cost, cn),
-               "all_in_cost_per": ratio(all_cost, cn) if company else None,
-               "all_in_profit_per": ratio(crev - all_cost, cn) if company else None}
+               "revenue_per": None if method == "cohort" else (ratio(crev, cn_money) if with_costs
+                                                                else ratio(rev, n_money)),
+               "cost_per": ratio(mkt_cost, cn_money) if with_costs else None,
+               "profit_per": ratio(crev - mkt_cost, cn_money) if with_costs and method != "cohort" else None,
+               "all_in_cost_per": ratio(all_cost, cn_money) if company and with_costs else None,
+               "all_in_profit_per": (ratio(crev - all_cost, cn_money) if company and with_costs
+                                     and method != "cohort" else None)}
         rows.append(row)
     out = pd.DataFrame(rows)
     out.attrs["cost_months"] = keys(cmonths)
+    out.attrs["deals"] = deals
     return out
 
 

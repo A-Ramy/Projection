@@ -23,7 +23,7 @@ if ds is None:
 
 st.title("PTA")
 months = month_range(Month.of(ds.start), Month.of(ds.today))
-sources = sorted(set(ds.leads["source"]) | set(ds.revenues["source"]) - {""})
+sources = sorted((set(ds.leads["source"]) | set(ds.revenues["source"])) - {""})
 
 c = st.columns([2, 2.6, 2, 2.4], vertical_alignment="bottom")
 dim = c[0].segmented_control("View", ["ACQ", "FUS"], default="ACQ", key="pta_dim", format_func=lambda d: f"{d} View")
@@ -78,6 +78,9 @@ with st.container(key="card-trend"):
                                  marker=dict(size=8, line=dict(width=2, color="rgba(255,255,255,.9)"))))
     layout = plotly_layout()
     layout["yaxis"]["tickformat"] = {"Qual. Rate": ".0%", "Lead→Deal": ".0%"}.get(metric, ",.0f")
+    top = max((y for t in fig.data for y in t.y if y is not None and y == y), default=0)
+    if layout["yaxis"]["tickformat"] == ",.0f" and top < 10:
+        layout["yaxis"] |= {"tickformat": ",d", "dtick": 1, "rangemode": "tozero"}  # small counts: whole ticks
     if metric in ("Revenue", "Avg Deal"):
         layout["yaxis"]["tickprefix"] = "$"
     fig.update_layout(**layout, height=320)

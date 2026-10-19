@@ -2,7 +2,7 @@ import streamlit as st
 
 from projection.data import report
 from ui import html as h
-from ui.layout import issue_list
+from ui.layout import fit, issue_list
 from ui.state import get_dataset, get_settings
 
 st.title("Data Quality")
@@ -32,19 +32,23 @@ money = st.column_config.NumberColumn(format="dollar")
 h.heading("What's In The Sheet")
 t = st.tabs(["Months", "COSTS Names", "Sources", "KPI Values", "Reps"])
 with t[0]:
-    st.dataframe(report.months_overview(ds), column_config={"cost_total": money, "revenue": money})
+    df = report.months_overview(ds)
+    st.dataframe(df, column_config={"cost_total": money, "revenue": money}, height=fit(len(df)))
 with t[1]:
-    st.dataframe(report.costs_names(ds, settings), column_config={"total": money})
+    df = report.costs_names(ds, settings)
+    st.dataframe(df, column_config={"total": money}, height=fit(len(df)))
 with t[2]:
     st.caption("in_tabs: C = COSTS, R = REVENUES, K = KPIs Lead rows. Names are joined on exact text.")
-    st.dataframe(report.sources_overview(ds, settings), column_config={"cost": money, "revenue": money})
+    df = report.sources_overview(ds, settings)
+    st.dataframe(df, column_config={"cost": money, "revenue": money}, height=fit(len(df)))
 with t[3]:
     vc = report.value_counts(ds)
     cols = st.columns(len(vc))
     for col, (name, df) in zip(cols, vc.items(), strict=False):
         col.markdown(f"**{name}**")
-        col.dataframe(df, column_config={"revenue": money})
+        col.dataframe(df, column_config={"revenue": money}, height=fit(len(df)))
     m, n = report.address_match_rate(ds)
     st.caption(f"Address match for the cohort view: {m:,} of {n:,} REVENUES rows match a KPI address.")
 with t[4]:
-    st.dataframe(report.reps(ds), hide_index=True)
+    df = report.reps(ds)
+    st.dataframe(df, hide_index=True, height=fit(len(df)))

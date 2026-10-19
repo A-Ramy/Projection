@@ -152,3 +152,21 @@ def test_pta_empty_period(ds):
 
     assert leaderboard(ds, [Month(2026, 3)], "ACQ", sources=("SEO B",)).empty
     assert rep_table(ds, [Month(2026, 3)], "FUS").shape[0] >= 0
+
+
+def test_stage_money_is_consistent_and_closed_deal_uses_revenues():
+    from projection.config import DEFAULT_SETTINGS
+    from projection.data.load import build_dataset
+    from projection.metrics.funnel import stage_table
+    from projection.periods import quarter
+    from tests import metrics_fixture as mf
+
+    d = build_dataset(mf.raw_sheet(), DEFAULT_SETTINGS, today=mf.TODAY)
+    t = stage_table(d, quarter(2026, 3), DEFAULT_SETTINGS).set_index("stage")
+    for s, r in t.iterrows():
+        if pd.notna(r["cost_per"]) and pd.notna(r["profit_per"]):
+            assert abs(r["revenue_per"] - r["cost_per"] - r["profit_per"]) < 0.01, s
+    assert t.attrs["deals"] == 24
+    assert abs(t.loc["Closed Deal", "revenue_per"] - 415000 / 24) < 0.01  # per REVENUES deal
+    cohort_live = stage_table(d, quarter(2026, 4), DEFAULT_SETTINGS, method="cohort")  # no cost month: no crash
+    assert cohort_live["cost_per"].isna().all()

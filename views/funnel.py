@@ -26,7 +26,7 @@ quarters = list(dict.fromkeys(period_of(m, "quarter") for m in months))
 periods = {q.key: (q.label + (" (To Date)" if q.end >= ds.today else ""), list(q.months)) for q in quarters}
 periods |= {m.key: (m.label, [m]) for m in months}
 done_q = [q.key for q in quarters if q.end < ds.today]
-sources = sorted(set(ds.leads["source"]) | set(ds.revenues["source"]) - {""})
+sources = sorted((set(ds.leads["source"]) | set(ds.revenues["source"])) - {""})
 
 c = st.columns([2.4, 1.4, 2, 2, 2], vertical_alignment="bottom")
 src = c[0].selectbox("Source", ["All Sources (Company)"] + sources, key="fun_src")
@@ -88,9 +88,10 @@ with right, st.container(key="card-cvp"):
         h.status("Hidden under a rep filter." if filters.by_rep else "Waiting for this period's costs to post.")
     else:
         rows = []
+        mx = max([abs(v) for s in MAIN_PATH for v in (table.loc[s, "cost_per"], table.loc[s, "profit_per"])
+                  if h.ok(v)] or [1]) or 1  # one scale for every row, so the bars compare across stages
         for s in MAIN_PATH:
             cp, pp = table.loc[s, "cost_per"], table.loc[s, "profit_per"]
-            mx = max(abs(cp) if h.ok(cp) else 0, abs(pp) if h.ok(pp) else 0) or 1
             bars = (f'<div class="cvbar"><i style="width:{(abs(cp) if h.ok(cp) else 0) / mx * 100:.0f}%;'
                     f'background:var(--warn)"></i><i style="width:{(abs(pp) if h.ok(pp) else 0) / mx * 100:.0f}%;'
                     f'background:{"var(--good)" if not h.ok(pp) or pp >= 0 else "var(--bad)"}"></i></div>')
@@ -99,7 +100,9 @@ with right, st.container(key="card-cvp"):
                         "Cost Vs Profit"], rows, left=(0, 3)))
         st.html('<div class="legend"><span><i style="background:var(--warn)"></i>Cost per stage</span><span>'
                 '<i style="background:var(--good)"></i>Profit per stage (revenue − marketing cost)</span></div>')
-        st.caption(f"Cost and profit use the cost-complete months: {', '.join(m.label for m in cmonths)}.")
+        st.caption(f"Revenue, cost and profit use the cost-complete months: {', '.join(m.label for m in cmonths)}. "
+                   "Closed Deal is per REVENUES deal." + (" Cohort: profit per stage isn't shown (the period's "
+                                                          "revenue isn't the cohort's)." if method == "cohort" else ""))
 
 h.heading("All Stages", None, "Marketing view = revenue − marketing cost; company view = revenue − all costs incl. "
           "payroll" if company else "" if filters.by_rep else "Source view = revenue − this source's marketing cost")

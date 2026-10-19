@@ -13,6 +13,11 @@ from ui.state import demo_mode, get_secrets, refresh
 SEVERITY = {"error": ("Error", "scale"), "warning": ("Check", "low"), "info": ("Info", "ins")}
 
 
+def fit(n: int) -> int:
+    """Table height that shows every row, so tables never scroll up and down (sideways is fine)."""
+    return 35 * (n + 1) + 3
+
+
 def sidebar(ds: Dataset | None, tools: list) -> None:
     with st.sidebar:
         st.image(logo(), width="stretch")
@@ -33,8 +38,6 @@ def sidebar(ds: Dataset | None, tools: list) -> None:
         for p in tools:
             label = f"{p.title} ({checks})" if p.url_path == "data-quality" and checks else p.title
             st.page_link(p, label=label, width="stretch")
-        st.html('<div class="kv" style="margin-top:14px"><span>Private app</span>'
-                "<span>Invited team members only</span></div>")
 
 
 def tab_capsule(pages: list) -> None:

@@ -28,6 +28,12 @@
 | 13 | Final README + CLAUDE.md | Claude | Done | **Done** (2026-10-18) |
 
 ## Done so far
+- 2026-10-19 owner's batch: "Projection Base" naming; Totals revenue by exit; whole deals (nearest, spend adjusted);
+  exit rows follow their source's deals in the current mix; Manual sources (no history); reorder exit rows and
+  non-marketing lines; ROAS tile / per source / per exit; full-height tables; Apply Changes bar; centered tabs,
+  no sidebar scrollbar or private-app text. Review fixes: Funnel cohort crash with no cost month, Closed Deal money per
+  REVENUES deal, revenue/cost/profit per stage on the same months, shared bar scale, blank Source option, future Start
+  Date blocked, Backtest uses the default window, PTA whole-number ticks.
 - 2026-10-18 default source order (owner): PPC NW RDS, PPC NW SM3, SEO HESEL (WEBUYSOUTHFL.COM), SEO MEGA
   (TOTALCHB.CO), Facebook Ads (HESEL), SEO CARROT (TOTALCHB.COM), SEO (NW WordPress), SEO (GMB TCHB), SELF GEN,
   Referral, PPC FL RDS. Drag to reorder: Projections → Reorder Sources (per quarter, with Default Order) and

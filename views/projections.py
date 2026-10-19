@@ -332,7 +332,7 @@ for r in rows:
         "Spend": num(None if r.kind == FOLLOW_UP_KIND else (r.spend * scale if r.spend is not None else None)),
         "Revenue": num(r.revenue * scale if r.revenue is not None else None),
         "Deals": num(r.deals * scale if r.deals is not None else None),
-        "Set By": SET_BY[r.driver.kind],
+        "Set By": SET_BY[r.driver.kind] if r.driver.typed or r.driver.kind == "exits" else "Backbone",
         "Not Placed": num(None if r.unallocated is None else round(r.unallocated * scale, 2) + 0.0),
         "Backbone Spend": u.cost * scale, "Backbone Deals": u.deals * scale, "Backbone Revenue": u.revenue * scale,
         "Cost / Deal": num(u.cpd), "Avg Deal": num(u.avg),
@@ -352,7 +352,8 @@ if table:
             "Spend": st.column_config.NumberColumn("Spend ✎", format="dollar", help="Type a budget"),
             "Revenue": st.column_config.NumberColumn("Revenue ✎", format="dollar", help="Type the revenue to aim for"),
             "Deals": st.column_config.NumberColumn("Deals ✎", format="%.2f", help="Type the number of deals"),
-            "Set By": st.column_config.TextColumn(help="The number you typed for this source"),
+            "Set By": st.column_config.TextColumn(
+                help="The number you typed for this source; Backbone = still last quarter's, not typed yet"),
             "Use Exit Rows": st.column_config.CheckboxColumn(
                 width="small", help="Let the exit rows below set this source's deals (and so its spend)"),
             "Not Placed": st.column_config.NumberColumn(format="%.2f", help="Deals not yet placed on exit rows"),

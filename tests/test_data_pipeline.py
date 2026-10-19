@@ -133,7 +133,7 @@ def test_kpis_counted_by_trigger_date_not_created(ds):
 def test_blank_kpi_dates_counted_and_excluded(ds):
     b = ds.blank_kpi_dates
     assert b.count == 2 and b.created_since_start == 1
-    assert b.by_quality == {"Pending": 1, "(blank)": 1}
+    assert b.by_quality == {"Pending": 2}  # a Lead row with a blank Quality is Pending
     assert "2 rows with a blank Date" in issue(ds, "blank_kpi_dates").title
 
 
@@ -174,3 +174,10 @@ def test_address_keys_match_street_only_revenue_to_full_kpi_address():
     assert street_matches("1057 w 66th st", "1057 w 66th st hialeah fl 33012")
     assert not street_matches("1057 w 66th st", "11057 w 66th st")
     assert date(2026, 1, 1)  # keep date import used
+
+
+def test_lead_quality_is_qualified_disqualified_or_pending():
+    from projection.data.clean import lead_quality
+
+    assert [lead_quality(q) for q in ("Qualified", " disqualified ", "", "Pending", "Hot")] == [
+        "Qualified", "Disqualified", "Pending", "Pending", "Pending"]

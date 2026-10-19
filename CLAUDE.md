@@ -21,6 +21,7 @@ sync when a rule changes.
 - Except **All Leads**: every KPI = Lead row (any Quality, incl. Pending/blank Date) counts once by
   **Date Created** ≥ start. Net Leads (Qualified) count by Date, which on Lead rows is the Quality-change date.
 - KPI and Stage names match funnel stages case-insensitively ("No-Show" = No-show).
+- Quality applies only to Lead rows: Qualified, Disqualified, anything else (incl. blank) = Pending (owner, 2026-10-19).
 - Monthly grain first, then roll up (`projection/periods.py` GRAINS: month, quarter, half, year).
 - A month in progress has no costs. Cost comparisons run through the last cost-complete month and say so;
   revenue and KPIs run to today.

@@ -56,6 +56,7 @@ BLOCK_OF_EXIT = {"Fix & Flip": "fix_flip", "Buy & Hold": "buy_hold"}  # everythi
 LEAD_KPI = "Lead"
 QUALIFIED = "Qualified"
 DISQUALIFIED = "Disqualified"
+PENDING = "Pending"  # a Lead row that is neither Qualified nor Disqualified (incl. blank)
 
 
 def block_of(exit_strategy: str) -> str:

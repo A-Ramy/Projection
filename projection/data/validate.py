@@ -171,7 +171,7 @@ def validate(ds: Dataset, settings: dict) -> list[Issue]:
     other_q = leads[~leads["quality"].isin([QUALIFIED, DISQUALIFIED])]["quality"].value_counts()
     if len(other_q):
         out.append(Issue("info", TAB_KPIS, "lead_other_quality",
-                         "KPIs: dated Lead rows whose Quality isn't Qualified or Disqualified",
+                         "KPIs: dated Lead rows that are Pending (Quality not Qualified or Disqualified)",
                          detail="Counted in All Leads, not in Net Leads.",
                          count=int(other_q.sum()), examples=[f"{k or '(blank)'}: {n:,}" for k, n in other_q.items()]))
     if len(kpis):

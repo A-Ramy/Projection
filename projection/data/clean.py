@@ -14,7 +14,16 @@ import pandas as pd
 
 from projection.data.keys import addr_key, lead_key
 from projection.data.parse import CellError, TabRows, is_blank, to_datetime, to_money, to_text
-from projection.data.schema import LEAD_KPI, TAB_COSTS, TAB_KPIS, TAB_REVENUES, Issue
+from projection.data.schema import (
+    DISQUALIFIED,
+    LEAD_KPI,
+    PENDING,
+    QUALIFIED,
+    TAB_COSTS,
+    TAB_KPIS,
+    TAB_REVENUES,
+    Issue,
+)
 from projection.funnel_config import KPI_STAGES
 from projection.periods import Month
 
@@ -33,6 +42,12 @@ LEADS_FRAME = [
     "sheet_row",
 ]
 _STAGE_SPELLING = {s.casefold(): s for s in KPI_STAGES}
+
+
+def lead_quality(text: str) -> str:
+    """Quality of a Lead row: Qualified or Disqualified (any case), otherwise Pending (incl. blank)."""
+    t = text.strip().lower()
+    return next((q for q in (QUALIFIED, DISQUALIFIED) if t == q.lower()), PENDING)
 
 
 def canonical_kpi(kpi: str) -> str:
@@ -186,7 +201,9 @@ def clean_kpis(
             created = to_datetime(rec.get("created"))
         except CellError:
             created, bad_created = None, bad_created + 1
-        kpi, quality = canonical_kpi(to_text(rec.get("kpi")).strip()), to_text(rec.get("quality")).strip()
+        kpi, quality = canonical_kpi(to_text(rec.get("kpi")).strip()), lead_quality(to_text(rec.get("quality")))
+        if kpi != LEAD_KPI:
+            quality = ""  # Quality is only recorded on Lead rows
         stats.rows_with_content += 1
         addr = addr_key(to_text(rec.get("address")))
         common = {

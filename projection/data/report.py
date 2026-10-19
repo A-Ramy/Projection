@@ -52,15 +52,12 @@ def sources_overview(ds: Dataset, settings: dict) -> pd.DataFrame:
 
 def value_counts(ds: Dataset) -> dict[str, pd.DataFrame]:
     k = ds.kpis
-    lead_q = (k[k["kpi"] == LEAD_KPI]["quality"].replace("", "(blank)").value_counts()
-              .rename_axis("Quality").to_frame("Lead rows"))
     def vc(series, name):
         return series.replace("", "(blank)").value_counts().rename_axis(name).to_frame("rows")
     return {
         "KPI": vc(k["kpi"], "KPI"),
-        "Quality": vc(k["quality"], "Quality"),
+        "Lead Quality": ds.leads["quality"].value_counts().rename_axis("Quality").to_frame("leads"),
         "Stage": vc(k["stage"], "Stage"),
-        "Lead × Quality": lead_q,
         "Exit Strategy": ds.revenues.groupby(ds.revenues["exit"].replace("", "(blank)")).agg(
             deals=("revenue", "size"), revenue=("revenue", "sum")).sort_values("deals", ascending=False),
     }

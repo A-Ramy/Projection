@@ -85,6 +85,8 @@ sync when a rule changes.
   `.streamlit/config.toml`. Escape `$` in markdown text (it starts math); HTML via `st.html` is safe.
 - The sheet is read once per `cache_ttl_minutes` (or Refresh Data) with GHL links already hashed (`data.load.scrub`);
   a settings change rebuilds the data from that read without reading the sheet again (`ui/state.py`).
+- Streamlit Cloud's daily preview screenshot (shown on its loading / wake-up screen) is taken by a headless browser:
+  `app.py` shows it the logo alone (`?splash=1` to check); the first data load of a session also shows the logo.
 - Every push to this branch redeploys https://tchb-projection.streamlit.app/: test before pushing.
 - Run `uv run pytest` and `uv run ruff check .` before committing. Regenerate `requirements.txt` when
   dependencies change.

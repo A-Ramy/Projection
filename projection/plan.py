@@ -237,8 +237,16 @@ def link(p: QuarterProjection, source: str, bb: Backbone) -> None:
     if d is None or d.kind == "exits":
         return
     unit = bb.units.get(source)
-    if d.kind == "manual":
-        place(p, source, whole(d.deals), unit, avg=d.revenue / d.deals if d.deals else None)
+    if d.kind == "manual":  # each exit keeps its own avg deal, scaled so the rows add up to the typed revenue
+        place(p, source, whole(d.deals), unit)
+        lines = [r for r in p.revenue if r.source == source]
+        rows_rev = sum(r.p_revenue for r in lines)
+        if rows_rev:
+            for r in lines:
+                r.p_avg = round(r.p_avg * d.revenue / rows_rev, 2)
+        elif d.deals:
+            for r in lines:
+                r.p_avg = round(d.revenue / d.deals, 2)
         return
     lines = [r for r in p.revenue if r.source == source]
     _, deals, _ = derive(d, unit or Unit(source), sum(r.p_deals for r in lines), sum(r.p_revenue for r in lines))
@@ -286,7 +294,8 @@ def set_manual(p: QuarterProjection, source: str, bb: Backbone, settings: dict, 
     if revenue is not None:
         d.revenue = float(revenue)
     p.drivers[source] = d
-    link(p, source, bb)
+    if deals is not None or revenue is not None:  # a spend-only change leaves the exit rows as they are
+        link(p, source, bb)
     sync_costs(p, bb, settings)
 
 
@@ -372,6 +381,41 @@ def prefill(ds: Dataset, period: Period, settings: dict, base: QuarterProjection
     for name in settings.get("non_marketing", []):
         p.non_marketing.append(CostLine(source=name, p_cost=round(float(nm.loc[nm["source"] == name, "cost"].sum())
                                                                   / q, 2)))
+    sync_costs(p, backbone(ds, p, period), settings)
+    return p
+
+
+def prefill_actuals(ds: Dataset, period: Period, settings: dict, base: QuarterProjection) -> QuarterProjection:
+    """A finished quarter's projection as a copy of its own actuals (owner, 2026-10-21), to edit back to what was
+    projected: every source with spend or deals in the quarter (active ones first, in their order) is Manual at its
+    actual spend, deals and revenue, with exit rows at the actual deals and avg deal; revenue from sources with no
+    spend that aren't active goes to Follow Up; non-marketing lines at their actual cost. Projected = actual."""
+    p = QuarterProjection(quarter_id=base.quarter_id, lookback=base.lookback, lookback_from=base.lookback_from,
+                          lookback_to=base.lookback_to, profit_target=base.profit_target)
+    months = list(period.months)
+    costs, revs = in_months(ds.costs, months), in_months(ds.revenues, months)
+    non = set(settings.get("non_marketing", []))
+    mkt = costs[~costs["source"].isin(non)]
+    spent = mkt.groupby("source")["cost"].sum()
+    active = list(dict.fromkeys(settings.get("active_sources", [])))
+    own = active + sorted(s for s in spent.index if spent[s] and s not in active)
+    for src in own:
+        p.marketing.append(CostLine(source=src))
+    projected = set(own)
+    revs = revs.assign(key=revs["source"].where(revs["source"].isin(projected), FOLLOW_UP))
+    blocks = {b: i for i, b in enumerate(BLOCKS)}
+    for (src, exit_), g in sorted(revs[revs["exit"] != ""].groupby(["key", "exit"]),
+                                  key=lambda kv: (blocks[block_of(kv[0][1])], kv[0][1])):
+        p.revenue.append(RevenueLine(block=block_of(exit_), source=src, exit=exit_, p_deals=float(len(g)),
+                                     p_avg=round(float(g["revenue"].sum()) / len(g), 2)))
+    for src in own:
+        g = revs[revs["key"] == src]
+        p.drivers[src] = Driver(kind="manual", typed=True, spend=round(float(spent.get(src, 0.0)), 2),
+                                deals=float(len(g)), revenue=round(float(g["revenue"].sum()), 2))
+    _sort(p)
+    for name in settings.get("non_marketing", []):
+        p.non_marketing.append(CostLine(source=name, p_cost=round(float(costs.loc[costs["source"] == name,
+                                                                                  "cost"].sum()), 2)))
     sync_costs(p, backbone(ds, p, period), settings)
     return p
 

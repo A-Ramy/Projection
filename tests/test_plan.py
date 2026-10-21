@@ -215,3 +215,31 @@ def test_relink_fixes_an_old_save_with_more_deals_on_its_rows(ds, p):
     assert a.deals == 10 and a.unallocated == 0 and totals(p, source_rows(p, bb, S))["not_placed"] == 0
     assert all(r.p_deals == int(r.p_deals) for r in p.revenue)
     assert relink(p, bb, S) == []  # nothing left to fix
+
+
+def test_finished_quarter_starts_as_its_own_actuals(ds):
+    from projection.metrics.quarter import quarter_view
+    from projection.plan import prefill_actuals
+
+    q3 = quarter(2026, 3)
+    p = prefill_actuals(ds, q3, S, QuarterProjection(quarter_id="2026-Q3"))
+    t = totals(p, source_rows(p, backbone(ds, p, q3), S))
+    v = quarter_view(ds, p, q3, S)
+    assert (t["revenue"], t["cost"], t["deals"]) == (v.a_revenue, v.a_cost, 24) == (415000, 95000, 24)
+    assert t["not_placed"] == 0
+    assert {c.source: c.p_cost for c in p.marketing}["Mailer C"] == 2000
+    assert {r.exit: r.p_deals for r in p.revenue if r.source == FOLLOW_UP} == {"Fix & Flip": 1}  # Inbound X
+
+
+def test_manual_edits_keep_each_exits_avg(ds):
+    from projection.plan import prefill_actuals, set_manual
+
+    q3 = quarter(2026, 3)
+    p = prefill_actuals(ds, q3, S, QuarterProjection(quarter_id="2026-Q3"))
+    bb = backbone(ds, p, q3)
+    avgs = {r.exit: r.p_avg for r in p.revenue if r.source == "PPC A"}
+    set_manual(p, "PPC A", bb, S, spend=40000)
+    assert {r.exit: r.p_avg for r in p.revenue if r.source == "PPC A"} == avgs  # spend only: rows untouched
+    set_manual(p, "PPC A", bb, S, revenue=690000)  # double the revenue: every exit's avg doubles
+    assert {r.exit: r.p_avg for r in p.revenue if r.source == "PPC A"} == {k: v * 2 for k, v in avgs.items()}
+    assert rows(ds, p)["PPC A"].unallocated == 0 and totals(p, source_rows(p, bb, S))["not_placed"] == 0

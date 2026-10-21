@@ -25,6 +25,7 @@ from projection.plan import (
     backbone,
     edit_exit,
     prefill,
+    prefill_actuals,
     relink,
     reorder,
     reorder_exits,
@@ -218,12 +219,15 @@ if proj.lookback == "custom" and before:
         st.rerun()
 
 bb = backbone(ds, proj, period)
-if bb.months and (is_empty(proj) and store.latest_revision(qid) is None or not has_numbers(proj)):
-    # a new quarter (or one saved with no numbers in it) starts as the projection base repeated
-    fresh = prefill(ds, period, settings, proj)
+finished = period.end < ds.today
+if (finished or bb.months) and (is_empty(proj) and store.latest_revision(qid) is None or not has_numbers(proj)):
+    # a new quarter (or one saved with no numbers in it) starts as the projection base repeated; a finished quarter
+    # starts as a copy of its own actuals, to edit back to what was projected
+    fresh = prefill_actuals(ds, period, settings, proj) if finished else prefill(ds, period, settings, proj)
     if has_numbers(fresh):
         put(fresh)
-        st.toast("Pre-filled from the projection base: Save to keep it", icon=":material/auto_fix:")
+        st.toast("Filled with this quarter's actuals: change what was projected, then Save" if finished
+                 else "Pre-filled from the projection base: Save to keep it", icon=":material/auto_fix:")
         st.rerun()
 fixed = relink(proj, bb, settings) if state.setdefault("relinked", {}).get(qid) != ver else []
 state["relinked"][qid] = ver  # at most once per change, so it can never loop
@@ -243,7 +247,10 @@ when = ("Complete: actuals are final." if period.end < ds.today else
         "Future quarter.")
 h.status(f"{when} · Projection base: <b>{bb.label}</b> actuals{' per quarter' if bb.quarters > 1 else ''} · "
          f"{saved_txt}{dirty}")
-if not bb.months:
+if finished and not saved:
+    h.box(f"{period.label} is finished, so it starts as a copy of its own actuals (projected = actual). Change any "
+          "number back to what was projected, then <b>Save</b>.", "info")
+elif not bb.months:
     h.box("No complete months before this quarter, so there's no projection base: type every number yourself.", "warn")
 elif not saved:
     h.box(f"Pre-filled with the {bb.label} actuals. Change what you plan to do differently, then <b>Save</b> "
@@ -253,7 +260,7 @@ elif not saved:
 active = list(dict.fromkeys(settings.get("active_sources", [])))
 on = [c.source for c in proj.marketing]
 missing, extra = [a for a in active if a not in on], [s for s in on if s not in active]
-if show == "quarter" and active and (missing or extra) and not is_empty(proj):
+if show == "quarter" and active and (missing or extra) and not is_empty(proj) and not finished:
     parts = []
     if missing:
         parts.append("<b>Active sources missing here:</b> " + ", ".join(h.esc(s) for s in missing))
@@ -289,8 +296,14 @@ if a[0].button("Save", type="primary", icon=":material/save:", width="stretch",
 if a[1].button("Discard", icon=":material/undo:", disabled=not state["dirty"].get(qid), width="stretch"):
     load(qid)
     st.rerun()
-if a[2].button("Reset To Projection Base", icon=":material/restart_alt:", width="stretch", disabled=not bb.months,
-               help=f"Start again from the {bb.label} actuals (your typed numbers are cleared until you save)."):
+if finished:
+    if a[2].button("Reset To Actuals", icon=":material/restart_alt:", width="stretch",
+                   help=f"Start again from {period.label}'s own actuals (your typed numbers are cleared until you "
+                        "save)."):
+        put(prefill_actuals(ds, period, settings, proj))
+        st.rerun()
+elif a[2].button("Reset To Projection Base", icon=":material/restart_alt:", width="stretch", disabled=not bb.months,
+                 help=f"Start again from the {bb.label} actuals (your typed numbers are cleared until you save)."):
     put(prefill(ds, period, settings, proj))
     st.rerun()
 

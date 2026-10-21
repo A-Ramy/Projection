@@ -47,6 +47,10 @@ sync when a rule changes.
 ## Projecting a quarter (owner's model, 2026-10-18; `projection/plan.py`)
 - Built at the start of the quarter on a **projection base** (code: `backbone`): the actuals of the quarter before (switchable: last 2
   quarters, all since start, custom). A new quarter is pre-filled as the backbone repeated, so it starts equal to it.
+- A **finished** quarter with nothing saved starts as a copy of its own actuals (`plan.prefill_actuals`: every source
+  with spend or deals Manual at its actual spend/deals/revenue, exit rows at actual deals and avg, non-marketing at
+  actual cost; projected = actual), for the owner to edit back to what was projected (owner, 2026-10-21).
+  "Reset To Actuals" redoes it. Manual edits keep each exit's own avg (a revenue change scales them).
 - Per source, type ONE of spend / revenue / deals; the rest follows from the base's cost per deal and avg deal.
   Deals are **whole**: a typed spend/revenue rounds to the nearest deal and spend = deals × cost per deal (owner,
   2026-10-19). A source's deals follow onto its Source × Exit rows in their current mix (largest remainder; empty rows

@@ -38,7 +38,7 @@ sync when a rule changes.
 
 ## Revenue rules
 - Every REVENUES row is a deal (incl. $0 and negative rows). Revenue = sum.
-- Blocks: main (Novation Deal, Wholesale, Retail Listing), Fix & Flip, Buy & Hold.
+- Blocks: main (Novation (renamed from "Novation Deal" 2026-10-21; old saves convert on load), Wholesale, Retail Listing), Fix & Flip, Buy & Hold.
 - **Follow Up** (per block): actuals = rows whose Source is not on the quarter's projection at all (no marketing
   line, no revenue row in any block). A projected source closing under an exit it has no row for gets an auto
   "(unprojected)" row under that source, never Follow Up (owner correction, 2026-10-18).
@@ -56,7 +56,7 @@ sync when a rule changes.
 - UI says **Projection Base** (never "backbone"). ROAS = revenue ÷ marketing spend (tile, per source, per exit:
   exit revenue ÷ deals × cost per deal). "View ROAS Breakdown" opens overall / per source / per exit, projected next
   to actual (`metrics/roas.py`; actuals over cost-complete months, off-projection spend grouped as Follow Up).
-  Tables show every row (`ui.layout.fit`). "View Deals" (under table 2, and per exit under Totals) lists the
+  Tables show every row (`ui.layout.fit`). "View Deals" (under table 2) and a click on a Totals revenue line (`ui/clicktable.py`) list the
   REVENUES deals behind a number (actual to date or projection base): date, address, source, ACQ, FUS, DISPO,
   DISPO LM, AGENT, revenue (`metrics/deals.py`).
 - The **active sources** (setting `active_sources`, owner's list) are projected on their own, no-cost ones (SELF GEN,

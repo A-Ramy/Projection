@@ -49,7 +49,7 @@ RANGES = {
     "KPIS_LINK": f"{TAB_KPIS}!M:M",
 }
 
-KNOWN_EXITS = ["Novation Deal", "Wholesale", "Retail Listing", "Fix & Flip", "Buy & Hold"]
+KNOWN_EXITS = ["Novation", "Wholesale", "Retail Listing", "Fix & Flip", "Buy & Hold"]
 # Revenue blocks in the Projections tab
 BLOCK_OF_EXIT = {"Fix & Flip": "fix_flip", "Buy & Hold": "buy_hold"}  # everything else: "main"
 

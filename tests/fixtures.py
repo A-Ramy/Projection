@@ -47,7 +47,7 @@ REVENUES = [
     [serial(2026, 2, 20), "55 Elm St", "PPC NW RDS", 0, "Retail Listing", "", "Rep E", "Rep B", "", ""],
     [serial(2026, 3, 5), "9 Oak Ave", "PPC NW RDS", -4500, "Fix & Flip", "", "Rep E", "Rep B", "", ""],
     [serial(2026, 3, 6), "10 Pine Rd", "SELF GEN", "$21,000", "Wholesale", "", "", "Rep A", "", ""],
-    [serial(2026, 3, 7), "3060 SE Fairmont St", "PPC NW RDS", 30000, "Novation Deal", "", "Rep D", "Rep A", "", ""],
+    [serial(2026, 3, 7), "3060 SE Fairmont St", "PPC NW RDS", 30000, "Novation", "", "Rep D", "Rep A", "", ""],
     [serial(2026, 3, 8), "12 Sea Ln", "ppc nw rds", 15000, "Wholesale", "", "Rep D", "Rep C", "", ""],
     ["", "13 No Date St", "PPC NW RDS", 1000, "Wholesale", "", "", "", "", ""],
 ]

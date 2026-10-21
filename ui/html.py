@@ -65,8 +65,9 @@ def tiles(items: Iterable[tuple[str, str, str] | tuple[str, str, str, str]]) -> 
 
 
 def table(columns: list[str], rows: Iterable[list[str]], row_class: Callable[[int], str] | None = None,
-          left: Iterable[int] = (0,), cls: str = "") -> str:
-    """Cells are HTML strings (escape data with esc()). Returns the HTML so callers can combine pieces."""
+          left: Iterable[int] = (0,), cls: str = "", click: Callable[[int], str | None] | None = None) -> str:
+    """Cells are HTML strings (escape data with esc()). Returns the HTML so callers can combine pieces.
+    click(n) gives a row's click value (rendered with ui.clicktable.clickable)."""
     left = set(left)
     head = "".join(f'<th class="{"l" if i in left else ""}">{esc(c)}</th>' for i, c in enumerate(columns))
     body = []
@@ -74,7 +75,9 @@ def table(columns: list[str], rows: Iterable[list[str]], row_class: Callable[[in
         rc = row_class(n) if row_class else ""
         cells = "".join(c if c.startswith("<td") else f'<td class="{"l" if i in left else ""}">{c}</td>'
                         for i, c in enumerate(r))
-        body.append(f'<tr class="{rc}">{cells}</tr>')
+        cv = click(n) if click else None
+        attr = f' data-click="{esc(cv)}"' if cv else ""
+        body.append(f'<tr class="{rc}"{attr}>{cells}</tr>')
     return (f'<div class="wrap"><table class="t {cls}"><thead><tr>{head}</tr></thead>'
             f'<tbody>{"".join(body)}</tbody></table></div>')
 

@@ -18,7 +18,7 @@ def test_projected_and_actual_roas_add_up():
     assert (pr.spend, pr.revenue) == (35000, 415000) and abs(pr.roas - 415000 / 35000) < 1e-9
     a = next(x for x in pr.sources if x.source == "PPC A")
     assert (a.spend, a.revenue, a.roas) == (30000, 345000, 11.5)
-    nov = next(x for x in pr.exits if (x.source, x.exit) == ("PPC A", "Novation Deal"))
+    nov = next(x for x in pr.exits if (x.source, x.exit) == ("PPC A", "Novation"))
     assert nov.spend == 4 * 1500 and abs(nov.roas - 25000 / 1500) < 1e-9  # avg deal ÷ cost per deal
     assert next(x for x in pr.sources if x.source == "SELF GEN").roas is None  # no spend
 

@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style id="css"></style>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  tr[data-click] { cursor: pointer; }
+  tr[data-click] td:first-child { text-decoration: underline dotted; text-underline-offset: 3px; }
+  tr[data-click]:hover td { background: var(--accent-soft) !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  // Minimal Streamlit component: renders the given table HTML; a click on a row marked data-click sends its value.
+  const send = (type, data) => window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type }, data), "*");
+  let last = -1;  // measure the table, not the frame (the frame's own height would feed back into itself)
+  const height = () => {
+    const h = Math.ceil(document.getElementById("root").getBoundingClientRect().height) + 4;
+    if (h !== last) { last = h; send("streamlit:setFrameHeight", { height: h }); }
+  };
+  window.addEventListener("message", (e) => {
+    if (!e.data || e.data.type !== "streamlit:render") return;
+    const a = e.data.args;
+    document.getElementById("css").textContent = a.css;
+    document.getElementById("root").innerHTML = a.html;
+    document.querySelectorAll("tr[data-click]").forEach((tr) => {
+      tr.title = a.hint || "";
+      tr.addEventListener("click", () =>
+        send("streamlit:setComponentValue", { value: { row: tr.dataset.click, at: Date.now() }, dataType: "json" }));
+    });
+    height();
+  });
+  new ResizeObserver(height).observe(document.getElementById("root"));
+  send("streamlit:componentReady", { apiVersion: 1 });
+</script>
+</body>
+</html>

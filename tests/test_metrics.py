@@ -81,7 +81,7 @@ def test_follow_up_rollup_reconciles(ds, q3_projection):
     assert got == {
         ("main", "PPC A", "Wholesale"): (PROJECTED, 14, 210000),
         ("main", "SEO B", "Wholesale"): (PROJECTED, 1, 12000),
-        ("main", "PPC A (unprojected)", "Novation Deal"): (UNPROJECTED, 4, 100000),
+        ("main", "PPC A (unprojected)", "Novation"): (UNPROJECTED, 4, 100000),
         ("main", FOLLOW_UP, "Wholesale"): (FOLLOW_UP_KIND, 1, 20000),
         ("main", FOLLOW_UP, "Retail Listing"): (FOLLOW_UP_KIND, 1, 8000),
         # PPC A is on the projection, so its Fix & Flip deals get their own row, not Follow Up

@@ -47,6 +47,7 @@ from projection.planning import (
 from projection.suggest.profit_target import fixed_parts, needed_contribution, plan_a, plan_b, source_economics
 from ui import html as h
 from ui.brand import sortable_style
+from ui.clicktable import clickable
 from ui.layout import fit
 from ui.state import get_dataset, get_settings, get_store
 
@@ -389,10 +390,12 @@ def deals_dialog(exit_: str | None = None, source: str | None = None) -> None:
     exits = ["All"] + list(dict.fromkeys(KNOWN_EXITS + sorted(set(ds.revenues["exit"]) - {""})))
     srcs = ["All"] + [c.source for c in proj.marketing] + [FOLLOW_UP]
     f = st.columns([1.2, 1.4, 1.4], vertical_alignment="bottom")
-    when = f[0].segmented_control("Deals From", ["actual", "base"], default="actual", key="deals_when",
+    k = f"{exit_}|{source}|{st.session_state.get('deals_opened', 0)}"  # fresh filters each time it opens
+    when = f[0].segmented_control("Deals From", ["actual", "base"], default="actual", key=f"deals_when_{k}",
                                   format_func=lambda w: "Actual" if w == "actual" else "Projection Base") or "actual"
-    ex = f[1].selectbox("Exit Strategy", exits, index=exits.index(exit_) if exit_ in exits else 0, key="deals_exit")
-    sc = f[2].selectbox("Source", srcs, index=srcs.index(source) if source in srcs else 0, key="deals_src",
+    ex = f[1].selectbox("Exit Strategy", exits, index=exits.index(exit_) if exit_ in exits else 0,
+                        key=f"deals_exit_{k}")
+    sc = f[2].selectbox("Source", srcs, index=srcs.index(source) if source in srcs else 0, key=f"deals_src_{k}",
                         help="Follow Up = every source not on this projection.")
     months = [m for m in shown.months if m <= Month.of(ds.today)] if when == "actual" else bb.months
     df = deal_list(ds, months, proj, None if ex == "All" else ex, None if sc == "All" else sc)
@@ -577,6 +580,7 @@ if edit:
 
 if st.button("View Deals", icon=":material/list_alt:", key=f"deals_exits_{qid}",
              help="Every actual or projection-base deal behind these rows: date, address, source, reps, revenue"):
+    st.session_state["deals_opened"] = st.session_state.get("deals_opened", 0) + 1
     deals_dialog()
 
 # ---------- 3: non-marketing
@@ -663,18 +667,21 @@ body.append(["Cost % (of revenue excl. " + ", ".join(sorted(excl)) + ")",
              h.pct(view.a_pct), ""])
 classes = [x[4] for x in lines] + ["", ""]
 diff_label = "Vs Pace By Today" if in_progress else "Difference"
-h.show(h.table(["", f"Projection Base ({bb.label})", "Projected", "Actual", diff_label], body, lambda n: classes[n]))
+exit_of_row = {n: lbl.split(" · ", 1)[1] for n, (lbl, *_) in enumerate(lines)
+               if lbl.startswith("Revenue · ") and lbl.split(" · ", 1)[1] in exits_all}
+picked = clickable(h.table(["", f"Projection Base ({bb.label})", "Projected", "Actual", diff_label], body,
+                           lambda n: classes[n], click=exit_of_row.get),
+                   key=f"totals_{qid}", hint="Click to see the deals behind this revenue")
 rec = reconcile(ds, view)
 h.status(("✓ Actuals add up to the sheet: " if rec.ok else "⚠ Actuals don't add up to the sheet: ")
-         + f"costs {h.money(rec.sheet_cost, 2)}, revenue {h.money(rec.sheet_revenue, 2)} from {rec.sheet_deals} deals. "
+         + f"costs {h.money(rec.sheet_cost, 2)}, revenue {h.money(rec.sheet_revenue, 2)} from {rec.sheet_deals} deal{'' if rec.sheet_deals == 1 else 's'}. "
          + ("Vs pace compares actuals with the share of the projection expected by today (revenue by days "
             "elapsed, costs by completed months). " if in_progress else "")
          + "Green = better: more revenue or profit, less cost.")
-with st.container(horizontal=True, vertical_alignment="center", key="deal_links"):
-    st.html('<span class="status">See the deals behind:</span>')
-    for e in [e for e in exits_all if b_by_exit[e] or a_by_exit[e]]:
-        if st.button(e, icon=":material/list_alt:", type="tertiary", key=f"deals_{e}_{qid}"):
-            deals_dialog(e)
+st.caption("Click a revenue line (e.g. Revenue · Wholesale) to see the deals behind it.")
+if picked:
+    st.session_state["deals_opened"] = st.session_state.get("deals_opened", 0) + 1
+    deals_dialog(picked)
 
 # ---------- work back from a profit target
 if edit:

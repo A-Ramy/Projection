@@ -42,7 +42,7 @@ def rows(ds, p):
 def test_prefill_repeats_the_backbone(ds, p):
     assert [c.source for c in p.marketing] == ["PPC A", "SEO B", "Mailer C", "SELF GEN"]
     assert [(r.source, r.exit, r.p_deals, r.p_avg) for r in p.revenue] == [
-        ("PPC A", "Novation Deal", 4, 25000), ("PPC A", "Wholesale", 14, 15000), ("PPC A", "Fix & Flip", 2, 17500),
+        ("PPC A", "Novation", 4, 25000), ("PPC A", "Wholesale", 14, 15000), ("PPC A", "Fix & Flip", 2, 17500),
         ("SEO B", "Wholesale", 1, 12000), ("SELF GEN", "Retail Listing", 1, 8000), ("SELF GEN", "Wholesale", 1, 20000),
         (FOLLOW_UP, "Fix & Flip", 1, 30000)]
     assert {c.source: c.p_cost for c in p.non_marketing}["ACQ Payroll"] == 60000
@@ -70,12 +70,12 @@ def test_spend_driver_places_whole_deals_on_the_exit_rows(ds, p):
     assert (a.deals, a.revenue, a.unallocated, a.spend) == (30, 517500, 0, 45000)
     assert next(c for c in p.marketing if c.source == "PPC A").p_cost == 45000
     exits = {r.exit: r.p_deals for r in p.revenue if r.source == "PPC A"}
-    assert exits == {"Novation Deal": 6, "Wholesale": 21, "Fix & Flip": 3}  # 4 : 14 : 2 kept
+    assert exits == {"Novation": 6, "Wholesale": 21, "Fix & Flip": 3}  # 4 : 14 : 2 kept
     set_driver(p, "PPC A", "spend", 46000, bb, S)  # 30.67 deals -> 31, spend = 31 × $1,500
     a = rows(ds, p)["PPC A"]
     assert (a.deals, a.spend) == (31, 46500)
     assert {r.exit: r.p_deals for r in p.revenue if r.source == "PPC A"} == {
-        "Novation Deal": 6, "Wholesale": 22, "Fix & Flip": 3}
+        "Novation": 6, "Wholesale": 22, "Fix & Flip": 3}
     split_by_mix(p, "PPC A", bb, S)
     assert sum(r.p_deals for r in p.revenue if r.source == "PPC A") == 31
 

@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 FOLLOW_UP = "Follow Up"
 Block = Literal["main", "fix_flip", "buy_hold"]
 BLOCKS: tuple[Block, ...] = ("main", "fix_flip", "buy_hold")
 Origin = Literal["manual", "accepted_suggestion", "override"]
+RENAMED_EXITS = {"Novation Deal": "Novation"}  # owner renamed it in REVENUES, 2026-10-21
 DriverKind = Literal["spend", "revenue", "deals", "exits", "manual"]
 
 
@@ -32,6 +33,11 @@ class RevenueLine(BaseModel):
     p_avg: float = 0.0
     origin: Origin = "manual"
     inputs: dict | None = None
+
+    @field_validator("exit")
+    @classmethod
+    def _renamed_exits(cls, v: str) -> str:
+        return RENAMED_EXITS.get(v, v)  # versions saved before an exit was renamed in the sheet
 
     @property
     def p_revenue(self) -> float:

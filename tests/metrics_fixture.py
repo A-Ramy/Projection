@@ -63,7 +63,7 @@ def _revenues() -> list[list]:
     rows = [["Date Closed", "Address", "Source", "Revenue", "Exit Strategy", "AGENT", "FUS", "ACQ", "DISPO",
              "DISPO LM"]]
     for j in range(20):
-        exit_, amount = ("Wholesale", 15000) if j < 14 else ("Novation Deal", 25000) if j < 18 else (
+        exit_, amount = ("Wholesale", 15000) if j < 14 else ("Novation", 25000) if j < 18 else (
             "Fix & Flip", 40000 if j == 18 else -5000)
         d = datetime(2026, 8 if j < 10 else 9, 10 + j % 10)
         rows.append(_rev(d, f"{j} Main St", "PPC A", amount, exit_, "Rep A" if j < 12 else "Rep B"))

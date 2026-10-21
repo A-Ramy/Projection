@@ -65,3 +65,9 @@ def test_projection_round_trips_through_storage(tmp_path):
     store.save_revision(p.quarter_id, p.model_dump(), by="owner", note="first")
     back = QuarterProjection.model_validate(store.latest_revision("2026-Q4")["payload"])
     assert back == p and back.drivers["PPC A"].kind == "spend"
+
+
+def test_saved_novation_deal_rows_load_as_novation():
+    from projection.model import RevenueLine
+
+    assert RevenueLine(block="main", source="PPC A", exit="Novation Deal").exit == "Novation"

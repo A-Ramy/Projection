@@ -674,7 +674,8 @@ picked = clickable(h.table(["", f"Projection Base ({bb.label})", "Projected", "A
                    key=f"totals_{qid}", hint="Click to see the deals behind this revenue")
 rec = reconcile(ds, view)
 h.status(("✓ Actuals add up to the sheet: " if rec.ok else "⚠ Actuals don't add up to the sheet: ")
-         + f"costs {h.money(rec.sheet_cost, 2)}, revenue {h.money(rec.sheet_revenue, 2)} from {rec.sheet_deals} deal{'' if rec.sheet_deals == 1 else 's'}. "
+         + f"costs {h.money(rec.sheet_cost, 2)}, revenue {h.money(rec.sheet_revenue, 2)} from {rec.sheet_deals} "
+         + f"deal{'' if rec.sheet_deals == 1 else 's'}. "
          + ("Vs pace compares actuals with the share of the projection expected by today (revenue by days "
             "elapsed, costs by completed months). " if in_progress else "")
          + "Green = better: more revenue or profit, less cost.")

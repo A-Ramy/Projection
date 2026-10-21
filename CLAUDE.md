@@ -52,6 +52,8 @@ sync when a rule changes.
   2026-10-19). A source's deals follow onto its Source × Exit rows in their current mix (largest remainder; empty rows
   take the base mix); editing an exit row makes the rows set the source. New sources with no history are **Manual**
   (spend, deals, revenue each typed; exit avg = revenue ÷ deals). Avg deal is editable per exit row.
+- A quarter opened with exit rows out of step with their source (saved before whole/linked deals) is re-placed by
+  `plan.relink` (once per change; the owner saves it). "Revenue · No Exit Row Yet" should only ever be ≥ 0.
 - Table edits are collected and applied together (Apply Changes bar); Save is blocked while edits are pending.
 - UI says **Projection Base** (never "backbone"). ROAS = revenue ÷ marketing spend (tile, per source, per exit:
   exit revenue ÷ deals × cost per deal). "View ROAS Breakdown" opens overall / per source / per exit, projected next

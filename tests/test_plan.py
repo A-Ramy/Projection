@@ -198,3 +198,20 @@ def test_reorder_moves_sources_and_their_exit_rows(ds, p):
     assert [r.source for r in p.revenue] == ["SELF GEN"] * 2 + ["PPC A"] * 3 + ["SEO B", FOLLOW_UP]
     assert DEFAULT_SETTINGS["active_sources"][:3] == ["PPC NW RDS", "PPC NW SM3", "SEO HESEL (WEBUYSOUTHFL.COM)"]
     assert DEFAULT_SETTINGS["active_sources"][-1] == "PPC FL RDS"
+
+
+def test_relink_fixes_an_old_save_with_more_deals_on_its_rows(ds, p):
+    from projection.model import Driver
+    from projection.plan import relink
+
+    bb = backbone(ds, p, Q4)
+    p.drivers["PPC A"] = Driver(kind="spend", value=15000, typed=True)  # 10 deals, but its rows still hold 20
+    for r in p.revenue:
+        if r.source == "PPC A":
+            r.p_deals += 0.4  # fractional, as saved before deals were whole
+    assert totals(p, source_rows(p, bb, S))["not_placed"] < 0
+    assert relink(p, bb, S) == ["PPC A"]
+    a = rows(ds, p)["PPC A"]
+    assert a.deals == 10 and a.unallocated == 0 and totals(p, source_rows(p, bb, S))["not_placed"] == 0
+    assert all(r.p_deals == int(r.p_deals) for r in p.revenue)
+    assert relink(p, bb, S) == []  # nothing left to fix

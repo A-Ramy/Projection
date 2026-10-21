@@ -246,6 +246,24 @@ def link(p: QuarterProjection, source: str, bb: Backbone) -> None:
         place(p, source, int(deals), unit)
 
 
+def relink(p: QuarterProjection, bb: Backbone, settings: dict) -> list[str]:
+    """Put back in step every source whose exit rows don't add up to its deals (e.g. a version saved before deals
+    were whole and linked): its whole deals are re-placed on its rows in their current mix. Returns those sources."""
+    fixed = []
+    for r in source_rows(p, bb, settings):
+        d = p.drivers.get(r.source)
+        if d is None or d.kind == "exits" or r.deals is None or r.unallocated is None:
+            continue
+        has_rows = any(x.source == r.source for x in p.revenue) or bool(r.unit.exits)
+        fractional = any(x.p_deals != int(x.p_deals) for x in p.revenue if x.source == r.source)
+        if has_rows and (abs(r.unallocated) >= 0.5 or fractional):
+            link(p, r.source, bb)
+            fixed.append(r.source)
+    if fixed:
+        sync_costs(p, bb, settings)
+    return fixed
+
+
 def set_driver(p: QuarterProjection, source: str, kind: str, value: float, bb: Backbone, settings: dict) -> None:
     p.drivers[source] = Driver(kind=kind, value=float(value), typed=True)
     link(p, source, bb)

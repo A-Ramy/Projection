@@ -25,6 +25,7 @@ from projection.plan import (
     backbone,
     edit_exit,
     prefill,
+    relink,
     reorder,
     reorder_exits,
     set_driver,
@@ -224,6 +225,13 @@ if bb.months and (is_empty(proj) and store.latest_revision(qid) is None or not h
         put(fresh)
         st.toast("Pre-filled from the projection base: Save to keep it", icon=":material/auto_fix:")
         st.rerun()
+fixed = relink(proj, bb, settings) if state.setdefault("relinked", {}).get(qid) != ver else []
+state["relinked"][qid] = ver  # at most once per change, so it can never loop
+if fixed:  # a version saved before deals were whole and linked to their exit rows
+    put(proj)
+    st.toast("Exit rows put back in step with their sources (" + ", ".join(fixed) + "). Save to keep it.",
+             icon=":material/auto_fix:")
+    st.rerun()
 
 rev_id = state["rev"].get(qid)
 saved = store.get_revision(rev_id) if rev_id else None

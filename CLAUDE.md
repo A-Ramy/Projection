@@ -56,7 +56,9 @@ sync when a rule changes.
 - UI says **Projection Base** (never "backbone"). ROAS = revenue ÷ marketing spend (tile, per source, per exit:
   exit revenue ÷ deals × cost per deal). "View ROAS Breakdown" opens overall / per source / per exit, projected next
   to actual (`metrics/roas.py`; actuals over cost-complete months, off-projection spend grouped as Follow Up).
-  Tables show every row (`ui.layout.fit`).
+  Tables show every row (`ui.layout.fit`). "View Deals" (under table 2, and per exit under Totals) lists the
+  REVENUES deals behind a number (actual to date or projection base): date, address, source, ACQ, FUS, DISPO,
+  DISPO LM, AGENT, revenue (`metrics/deals.py`).
 - The **active sources** (setting `active_sources`, owner's list) are projected on their own, no-cost ones (SELF GEN,
   Referral) by revenue or deals; every other source is projected as one **Follow Up** group (e.g. "3 deals").
   The list's order is the default row order (dragged in Settings → Source Order); each quarter can be dragged into its

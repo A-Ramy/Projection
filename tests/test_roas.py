@@ -29,3 +29,17 @@ def test_projected_and_actual_roas_add_up():
     assert next(x for x in ac.sources if x.source == FOLLOW_UP).revenue == 30000  # Inbound X
     ppc = [x for x in ac.exits if x.source == "PPC A"]
     assert abs(sum(x.spend for x in ppc) - 30000) < 1e-6
+
+
+def test_deal_list_filters_by_exit_and_source():
+    from projection.metrics.deals import deal_list
+
+    ds = build_dataset(mf.raw_sheet(), S, today=mf.TODAY)
+    p = prefill(ds, quarter(2026, 4), S, QuarterProjection(quarter_id="2026-Q4"))
+    q3 = list(quarter(2026, 3).months)
+    allq3 = deal_list(ds, q3)
+    assert len(allq3) == 24 and allq3["Revenue"].sum() == 415000 and "DISPO LM" in allq3.columns
+    w = deal_list(ds, q3, p, "Wholesale", "PPC A")
+    assert len(w) == 14 and set(w["Source"]) == {"PPC A"}
+    fu = deal_list(ds, q3, p, source=FOLLOW_UP)
+    assert list(fu["Source"]) == ["Inbound X"] and fu["Revenue"].sum() == 30000

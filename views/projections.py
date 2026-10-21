@@ -12,6 +12,7 @@ from streamlit_sortables import sort_items
 from projection.data.schema import KNOWN_EXITS, block_of
 from projection.metrics import roas as roas_m
 from projection.metrics.core import in_months, marketing_names
+from projection.metrics.deals import deal_list
 from projection.metrics.follow_up import UNPROJECTED
 from projection.metrics.pacing import cost_pace, daily_pace
 from projection.metrics.quarter import QuarterView, quarter_view
@@ -382,6 +383,30 @@ if st.button("View ROAS Breakdown", icon=":material/insights:", type="tertiary",
     roas_breakdown()
 
 
+@st.dialog("Deals", width="large")
+def deals_dialog(exit_: str | None = None, source: str | None = None) -> None:
+    """The deals behind a revenue number: actual (this period to date) or the projection base's."""
+    exits = ["All"] + list(dict.fromkeys(KNOWN_EXITS + sorted(set(ds.revenues["exit"]) - {""})))
+    srcs = ["All"] + [c.source for c in proj.marketing] + [FOLLOW_UP]
+    f = st.columns([1.2, 1.4, 1.4], vertical_alignment="bottom")
+    when = f[0].segmented_control("Deals From", ["actual", "base"], default="actual", key="deals_when",
+                                  format_func=lambda w: "Actual" if w == "actual" else "Projection Base") or "actual"
+    ex = f[1].selectbox("Exit Strategy", exits, index=exits.index(exit_) if exit_ in exits else 0, key="deals_exit")
+    sc = f[2].selectbox("Source", srcs, index=srcs.index(source) if source in srcs else 0, key="deals_src",
+                        help="Follow Up = every source not on this projection.")
+    months = [m for m in shown.months if m <= Month.of(ds.today)] if when == "actual" else bb.months
+    df = deal_list(ds, months, proj, None if ex == "All" else ex, None if sc == "All" else sc)
+    h.status((f"Actual · {shown.label} to date · " if when == "actual" else f"Projection Base · {bb.label} · ")
+             + f"<b>{len(df)} deal{'' if len(df) == 1 else 's'}</b> · revenue {h.money(df['Revenue'].sum())}"
+             + (f" · avg {h.money(df['Revenue'].mean())}" if len(df) else "")
+             )
+    if len(df):
+        st.dataframe(df, hide_index=True, width="stretch", height=fit(len(df)),
+                     column_config={"Revenue": MONEY, "Date Closed": st.column_config.DateColumn(format="MMM D, YYYY")})
+    else:
+        st.caption("No deals for this choice.")
+
+
 # ---------- 1: sources
 def actual_of(src: str) -> tuple[float, int, float]:
     spend = next((c.a_cost for c in view.costs if c.source == src), 0.0)
@@ -550,6 +575,10 @@ if edit:
             put(proj)
             st.rerun()
 
+if st.button("View Deals", icon=":material/list_alt:", key=f"deals_exits_{qid}",
+             help="Every actual or projection-base deal behind these rows: date, address, source, reps, revenue"):
+    deals_dialog()
+
 # ---------- 3: non-marketing
 h.heading("Non-Marketing Costs", "3", "Payroll, consulting and general expenses: typed, starting at the projection "
           "base.")
@@ -641,6 +670,11 @@ h.status(("✓ Actuals add up to the sheet: " if rec.ok else "⚠ Actuals don't 
          + ("Vs pace compares actuals with the share of the projection expected by today (revenue by days "
             "elapsed, costs by completed months). " if in_progress else "")
          + "Green = better: more revenue or profit, less cost.")
+with st.container(horizontal=True, vertical_alignment="center", key="deal_links"):
+    st.html('<span class="status">See the deals behind:</span>')
+    for e in [e for e in exits_all if b_by_exit[e] or a_by_exit[e]]:
+        if st.button(e, icon=":material/list_alt:", type="tertiary", key=f"deals_{e}_{qid}"):
+            deals_dialog(e)
 
 # ---------- work back from a profit target
 if edit:

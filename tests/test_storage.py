@@ -39,3 +39,19 @@ def test_export_has_settings_and_every_version(tmp_path):
     store.save_revision("2026-Q4", {"quarter_id": "2026-Q4"}, by="owner", note="b")
     out = json.loads(json.dumps(store.export()))
     assert out["settings"] == {"scale_cap": 2.0} and [r["note"] for r in out["projection_revisions"]] == ["a", "b"]
+
+
+def test_import_adds_versions_and_rejects_bad_files(tmp_path):
+    import pytest
+
+    from projection.model import QuarterProjection
+    from projection.storage import Store
+
+    store = Store(f"sqlite:///{tmp_path / 'i.db'}")
+    good = {"projection_revisions": [{"quarter_id": "2026-Q1", "note": "orig",
+                                      "payload": QuarterProjection(quarter_id="2026-Q1").model_dump()}]}
+    assert store.import_revisions(good, by="owner") == [("2026-Q1", 1)]
+    assert store.latest_revision("2026-Q1")["note"] == "orig"
+    with pytest.raises(ValueError):  # pydantic ValidationError
+        store.import_revisions({"projection_revisions": [{"payload": {"marketing": "nope"}}]})
+    assert len(store.list_revisions("2026-Q1")) == 1  # nothing saved from the bad file

@@ -100,5 +100,18 @@ st.download_button("Download Backup", data=json.dumps(get_store().export(), inde
                    file_name=f"projection-backup-{date.today().isoformat()}.json", mime="application/json",
                    icon=":material/download:")
 
+st.subheader("Import Projections")
+h.status("Upload a backup file (or a prepared import file) to add its projections as new saved versions. Nothing is "
+         "overwritten: older versions stay under Saved Versions on Projections.")
+up = st.file_uploader("Projection File", type=["json"], label_visibility="collapsed", key="import_file")
+if up is not None and st.button("Import", icon=":material/upload:", type="primary"):
+    try:
+        done = get_store().import_revisions(json.loads(up.getvalue()), by=user_email())
+    except Exception as exc:  # a malformed file: say so, save nothing
+        st.error(f"Couldn't import that file: {type(exc).__name__}. Nothing was saved.")
+    else:
+        st.session_state.pop("projections", None)  # Projections reopens each quarter at its newest version
+        st.success("Imported " + ", ".join(f"{q} (version #{i})" for q, i in done) + ".")
+
 with st.expander("Defaults", icon=":material/restart_alt:"):
     st.json({k: v for k, v in DEFAULT_SETTINGS.items()})

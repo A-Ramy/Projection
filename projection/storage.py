@@ -131,6 +131,17 @@ class Store:
                          for r in c.execute(select(revisions_table).order_by(revisions_table.c.id))]
         return {"settings": settings, "projection_revisions": revisions}
 
+    def import_revisions(self, data: dict, by: str = "") -> list[tuple[str, int]]:
+        """Save every projection in a backup / import file as a new version of its quarter (nothing is overwritten;
+        settings in the file are ignored). Returns (quarter, new version id) pairs."""
+        from projection.model import QuarterProjection
+
+        out = []
+        for r in data.get("projection_revisions", []):
+            p = QuarterProjection.model_validate(r["payload"])  # rejects a malformed file before anything is saved
+            out.append((p, r.get("note") or "Imported"))
+        return [(p.quarter_id, self.save_revision(p.quarter_id, p.model_dump(), by=by, note=note)) for p, note in out]
+
     def list_quarters(self) -> list[dict]:
         with self.engine.connect() as c:
             return [dict(r._mapping) for r in c.execute(select(quarters_table).order_by(quarters_table.c.quarter_id))]

@@ -91,7 +91,9 @@ sync when a rule changes.
 - UI: Total Cash Home Buyers brand (indigo #4D458A, red #BD2239, green #109648; Baloo 2 + Nunito Sans),
   frosted-glass style, Title Case UI text, light/dark toggle, no hover layout shifts. Tokens in `ui/brand.py`,
   rules in `ui/brand.css`, read-only sheet-style tables via `ui/html.py`; Streamlit's light/dark themes in
-  `.streamlit/config.toml`. Escape `$` in markdown text (it starts math); HTML via `st.html` is safe.
+  `.streamlit/config.toml`. Works on phones: the `@media (max-width:640px)` block in `ui/brand.css` (one-row tabs,
+  wrapping pickers, sticky first column on sheet tables, full-width Apply bar); editors pin Source/Exit/Line.
+  Escape `$` in markdown text (it starts math); HTML via `st.html` is safe.
 - The sheet is read once per `cache_ttl_minutes` (or Refresh Data) with GHL links already hashed (`data.load.scrub`);
   a settings change rebuilds the data from that read without reading the sheet again (`ui/state.py`).
 - Streamlit Cloud's daily preview screenshot (shown on its loading / wake-up screen) is taken by a headless browser:

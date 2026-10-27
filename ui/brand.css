@@ -175,3 +175,33 @@ table.t{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeri
 [data-testid="stSidebarContent"]::-webkit-scrollbar,[data-testid="stSidebarUserContent"]::-webkit-scrollbar{display:none}
 /* the page tabs sit in the middle */
 [data-testid="stLayoutWrapper"]:has(> .st-key-tabs){align-self:center}
+
+/* ---------- phones and small tablets ---------- */
+@media (max-width:640px){
+  /* room for Streamlit's sidebar button above the tabs */
+  .block-container{padding:3.4rem 1rem 6rem!important}
+  h1{font-size:2rem!important}
+  /* page tabs: one compact row */
+  .st-key-tabs{gap:0!important;padding:4px;max-width:100%}
+  .st-key-tabs [data-testid="stPageLink-NavLink"]{padding:6px 12px;font-size:15px}
+  .st-key-tabs [data-testid="stPageLink-NavLink"] span{white-space:nowrap}
+  /* click-only pickers wrap instead of running off the screen */
+  [data-testid="stButtonGroup"]>div,[data-testid="stButtonGroup"] [role="radiogroup"],
+  [data-testid="stButtonGroup"] [data-baseweb="button-group"]{flex-wrap:wrap!important;row-gap:6px}
+  /* sheet tables: the label column stays put while the numbers scroll sideways */
+  .t th:first-child,.t td:first-child{position:sticky;left:0;z-index:1;background:var(--bg);
+    min-width:min(42vw,170px);max-width:46vw;white-space:normal;box-shadow:1px 0 0 var(--glass-line)}
+  .t th{white-space:normal;min-width:78px;line-height:1.25}
+  .t th:first-child{background:var(--head-grad);z-index:2}
+  .t tr.sub td:first-child,.t tr.tot td:first-child{background:var(--sub)}
+  .t{font-size:12.5px}.t th,.t td{padding:6px 8px}
+  /* tiles two by two, then one */
+  .tiles{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  /* the Apply Changes bar spans the bottom of the screen */
+  .st-key-applybar{left:8px!important;right:8px!important;bottom:10px;max-width:none!important;flex-wrap:wrap;background:var(--bg)!important;
+    padding:10px 12px}
+  .st-key-applybar .applybar-text{white-space:normal;width:100%}
+  /* the funnel rows stack their notes under the bar */
+  .frow{grid-template-columns:96px minmax(0,1fr)!important}
+  .frow>:nth-child(3){grid-column:1/-1}
+}

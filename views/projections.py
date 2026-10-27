@@ -475,6 +475,7 @@ if table:
         pd.DataFrame(table, columns=cols), key=src_key, hide_index=True, width="stretch", height=fit(len(table)),
         disabled=not edit or [c for c in cols if c not in ("Remove", "Spend", "Revenue", "Deals", "Manual")],
         column_config={
+            "Source": st.column_config.TextColumn(pinned=True),
             "Remove": st.column_config.CheckboxColumn(width="small"),
             "Manual": st.column_config.CheckboxColumn(
                 width=70, help="Type Spend, Deals and Revenue each on their own (for sources with no history)"),
@@ -547,7 +548,9 @@ if exit_rows:
         pd.DataFrame(exit_rows, columns=cols), key=exit_key, hide_index=True, width="stretch",
         height=fit(len(exit_rows)),
         disabled=not edit or [c for c in cols if c not in ("Remove", "P.Deals", "P.Avg", "P.Revenue")],
-        column_config={"Remove": st.column_config.CheckboxColumn(width="small"), "Base Deals": COUNT,
+        column_config={"Source": st.column_config.TextColumn(pinned=True),
+                       "Exit": st.column_config.TextColumn(pinned=True),
+                       "Remove": st.column_config.CheckboxColumn(width="small"), "Base Deals": COUNT,
                        "Base Avg": MONEY, "ROAS": st.column_config.NumberColumn(
                            format="%.2fx", help="Exit revenue ÷ its share of the source's spend (deals × cost/deal)"),
                        "P.Deals": st.column_config.NumberColumn("P.Deals ✎", format=DEALS_FMT),
@@ -617,8 +620,9 @@ nm_key = f"nm_{qid}_{ver}"
 if nm_rows:
     st.data_editor(pd.DataFrame(nm_rows), key=nm_key, hide_index=True, width="stretch", height=fit(len(nm_rows)),
                    disabled=not edit or ["Line", "Group", "Base Cost", "Actual Cost"],
-                   column_config={"Base Cost": MONEY, "P.Cost": st.column_config.NumberColumn("P.Cost ✎",
-                                  format="dollar"), "Actual Cost": MONEY})
+                   column_config={"Line": st.column_config.TextColumn(pinned=True), "Base Cost": MONEY,
+                                  "P.Cost": st.column_config.NumberColumn("P.Cost ✎", format="dollar"),
+                                  "Actual Cost": MONEY})
     if edit:
         with st.popover("Reorder Lines", icon=":material/drag_indicator:"):
             labels = [c.source for c in proj.non_marketing]
